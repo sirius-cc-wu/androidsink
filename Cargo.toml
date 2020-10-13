@@ -5,9 +5,9 @@ authors = ["Sirius Wu <ccwu660601@mapacode.tw>"]
 edition = "2018"
 
 [dependencies]
-gstreamer = "0.16.4"
-gstreamer-app = "0.16.3"
-gstreamer-audio = "0.16.4"
+gst = { package = "gstreamer", version = "0.16.4" }
+gst-app = { package = "gstreamer-app", version = "0.16.3" }
+gst-audio = { package = "gstreamer-audio", version = "0.16.4" }
 glib = "0.10.2"
 byte-slice-cast = "1.0.0"
 anyhow = "1.0.33"
