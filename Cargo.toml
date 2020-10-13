@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["Sirius Wu <ccwu660601@mapacode.tw>"]
 edition = "2018"
 
-
 [dependencies]
 gstreamer = "0.16.4"
 gstreamer-app = "0.16.3"

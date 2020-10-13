@@ -24,9 +24,6 @@ use std::i32;
 use anyhow::Error;
 use derive_more::{Display, Error};
 
-#[path = "./examples-common.rs"]
-mod examples_common;
-
 #[derive(Debug, Display, Error)]
 #[display(fmt = "Missing element {}", _0)]
 struct MissingElement(#[error(not(source))] &'static str);
@@ -179,7 +176,5 @@ fn example_main() {
 }
 
 fn main() {
-    // tutorials_common::run is only required to set up the application environent on macOS
-    // (but not necessary in normal Cocoa applications where this is set up autmatically)
-    examples_common::run(example_main);
+    example_main();
 }
