@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Sirius Wu <ccwu660601@mapacode.tw>"]
 edition = "2018"
 
+[lib]
+crate-type = ["dylib"]
+
 [dependencies]
 gst = { package = "gstreamer", version = "0.16.4" }
 gst-app = { package = "gstreamer-app", version = "0.16.3" }
@@ -12,3 +15,5 @@ glib = "0.10.2"
 byte-slice-cast = "1.0.0"
 anyhow = "1.0.33"
 derive_more = "0.99.11"
+jni = { version = "0.17", default-features = false }
+lazy_static = "1.4.0"

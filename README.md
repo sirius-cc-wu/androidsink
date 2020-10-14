@@ -8,22 +8,23 @@ Android example for gstreamer-rs
 # Environment variables
 export ANDROID_HOME=<path/to/android/home>
 export PATH=$PATH:$ANDROID_HOME/cmdline-tools/tools/bin:$ANDROID_HOME/build-tools/29.0.2:$ANDROID_HOME/platform-tools
-export NDK_HOME=<path/to/ndk>
+export ANDROID_NDK_HOME=<path/to/ndk>
 export PATH=$PATH:$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
 export CC=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
 export CXX=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++
+export PKG_CONFIG_ALLOW_CROSS=1 
 
 # Rust library
-cargo ndk --platform=26 --target=i686-linux-android build --release
-cargo ndk --platform=26 --target=x86_64-linux-android build --release
-cargo ndk --platform=26 --target=armv7-linux-androideabi build --release
-cargo ndk --platform=26 --target=aarch64-linux-android build --release
-cd examples/sink/app/src/main
+export GST_PKG_CONFIG=<path/to/gstreamer/pkgconfig>
+PKG_CONFIG_LIBDIR=$GST_PKG_CONFIG/x86 cargo ndk --platform=21 --target=i686-linux-android build --release
+PKG_CONFIG_LIBDIR=$GST_PKG_CONFIG/x86_64 cargo ndk --platform=21 --target=x86_64-linux-android build --release
+PKG_CONFIG_LIBDIR=$GST_PKG_CONFIG/armv7 cargo ndk --platform=21 --target=armv7-linux-androideabi build --release
+PKG_CONFIG_LIBDIR=$GST_PKG_CONFIG/arm64 cargo ndk --platform=21 --target=aarch64-linux-android build --release
 mkdir -p examples/sink/app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86,x86_64}
-cp ./target/armv7-linux-androideabi/release/libmic.so examples/sink/app/src/main/jniLibs/armeabi-v7a/
-cp ./target/aarch64-linux-android/release/libmic.so examples/sink/app/src/main/jniLibs/arm64-v8a/
-cp ./target/x86_64-linux-android/release/libmic.so examples/sink/app/src/main/jniLibs/x86_64/
-cp ./target/i686-linux-android/release/libmic.so examples/sink/app/src/main/jniLibs/x86/
+cp ./target/armv7-linux-androideabi/release/libandroidsink.so examples/sink/app/src/main/jniLibs/armeabi-v7a/
+cp ./target/aarch64-linux-android/release/libandroidsink.so examples/sink/app/src/main/jniLibs/arm64-v8a/
+cp ./target/x86_64-linux-android/release/libandroidsink.so examples/sink/app/src/main/jniLibs/x86_64/
+cp ./target/i686-linux-android/release/libandroidsink.so examples/sink/app/src/main/jniLibs/x86/
 
 # Android
 cd examples/sink
