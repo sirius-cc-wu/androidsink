@@ -16,10 +16,17 @@ export PKG_CONFIG_ALLOW_CROSS=1
 
 # Rust library
 export GST_PKG_CONFIG=<path/to/gstreamer/pkgconfig>
-PKG_CONFIG_LIBDIR=$GST_PKG_CONFIG/x86 cargo ndk --platform=21 --target=i686-linux-android build --release
-PKG_CONFIG_LIBDIR=$GST_PKG_CONFIG/x86_64 cargo ndk --platform=21 --target=x86_64-linux-android build --release
-PKG_CONFIG_LIBDIR=$GST_PKG_CONFIG/armv7 cargo ndk --platform=21 --target=armv7-linux-androideabi build --release
-PKG_CONFIG_LIBDIR=$GST_PKG_CONFIG/arm64 cargo ndk --platform=21 --target=aarch64-linux-android build --release
+mkdir build
+cd build
+cmake -DANDROID_ABI=x86 ..
+make
+cmake -DANDROID_ABI=x86_64 ..
+make
+cmake -DANDROID_ABI=armeabi-v7a ..
+make
+cmake -DANDROID_ABI=arm64-v8a ..
+make
+cd ..
 mkdir -p examples/sink/app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86,x86_64}
 cp ./target/armv7-linux-androideabi/release/libandroidsink.so examples/sink/app/src/main/jniLibs/armeabi-v7a/
 cp ./target/aarch64-linux-android/release/libandroidsink.so examples/sink/app/src/main/jniLibs/arm64-v8a/
