@@ -27,10 +27,24 @@ apply plugin: 'org.mozilla.rust-android-gradle.rust-android'
 cargo {
     module  = "../../.."
     libname = "androidsink"
-    targets = ["arm"]
+    targets = ["arm", "x86", "arm64", "x86_64"]
     profile = "release"
     prebuiltToolchains = true
     apiLevel = 21
+    exec { spec, toolchain ->
+        if (toolchain.target == "aarch64-linux-android") {
+            spec.environment("PKG_CONFIG_LIBDIR", System.getenv('GST_PKG_CONFIG') +  "/arm64")
+        }
+        if (toolchain.target == "armv7-linux-androideabi") {
+            spec.environment("PKG_CONFIG_LIBDIR", System.getenv('GST_PKG_CONFIG') +  "/armv7")
+        }
+        if (toolchain.target == "i686-linux-android") {
+            spec.environment("PKG_CONFIG_LIBDIR", System.getenv('GST_PKG_CONFIG') +  "/x86")
+        }
+        if (toolchain.target == "x86_64-linux-android") {
+            spec.environment("PKG_CONFIG_LIBDIR", System.getenv('GST_PKG_CONFIG') +  "/x86_64")
+        }
+    }
 }
 
 dependencies {
