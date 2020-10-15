@@ -4,6 +4,14 @@ Android example for gstreamer-rs
 
 # Build
 
+必須先編譯安卓的 gstreamer，並且將其 pkgconfig 拿出來放到一個目錄下，並修正各個 .pc 檔的路徑，目錄結構如下：
+
+* pkgconfig
+  * armv7
+  * arm64
+  * x86
+  * x86\_64
+
 ```
 # Environment variables
 export ANDROID_HOME=<path/to/android/home>
@@ -13,29 +21,18 @@ export PATH=$PATH:$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
 export CC=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
 export CXX=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++
 export PKG_CONFIG_ALLOW_CROSS=1 
+export GST_PKG_CONFIG=<path/to/android/gstreamers/pkgconfig>
 
 # Rust library
-export GST_PKG_CONFIG=<path/to/gstreamer/pkgconfig>
-mkdir build
-cd build
-cmake -DANDROID_ABI=x86 ..
-make
-cmake -DANDROID_ABI=x86_64 ..
-make
-cmake -DANDROID_ABI=armeabi-v7a ..
-make
-cmake -DANDROID_ABI=arm64-v8a ..
-make
-cd ..
-mkdir -p examples/sink/app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86,x86_64}
-cp ./target/armv7-linux-androideabi/release/libandroidsink.so examples/sink/app/src/main/jniLibs/armeabi-v7a/
-cp ./target/aarch64-linux-android/release/libandroidsink.so examples/sink/app/src/main/jniLibs/arm64-v8a/
-cp ./target/x86_64-linux-android/release/libandroidsink.so examples/sink/app/src/main/jniLibs/x86_64/
-cp ./target/i686-linux-android/release/libandroidsink.so examples/sink/app/src/main/jniLibs/x86/
-
-# Android
 cd examples/sink
-./gradlew build
+./gradlew cargoBuild
+
+# Copy all of the gstreamer libraries used into examples/sink/app/build/rustJniLibs
+
+...
+
+# App and rust library
+cd examples/sink
 ./gradlew installDebug
 ```
 
