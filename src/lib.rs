@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate log;
 
 use gst::gst_element_error;
 use gst::prelude::*;
@@ -123,12 +125,14 @@ fn create_pipeline() -> Result<gst::Pipeline, Error> {
 }
 
 fn main_loop(pipeline: gst::Pipeline) -> Result<(), Error> {
+    trace!("set pipeline state to playing");
     pipeline.set_state(gst::State::Playing)?;
 
     let bus = pipeline
         .get_bus()
         .expect("Pipeline without bus. Shouldn't happen!");
 
+    trace!("entering main loop");
     for msg in bus.iter_timed(gst::CLOCK_TIME_NONE) {
         use gst::MessageView;
 
@@ -150,6 +154,7 @@ fn main_loop(pipeline: gst::Pipeline) -> Result<(), Error> {
             _ => (),
         }
     }
+    trace!("leaving main loop");
 
     pipeline.set_state(gst::State::Null)?;
 
@@ -159,7 +164,7 @@ fn main_loop(pipeline: gst::Pipeline) -> Result<(), Error> {
 pub fn run() {
     match create_pipeline().and_then(main_loop) {
         Ok(r) => r,
-        Err(e) => eprintln!("Error! {}", e),
+        Err(e) => trace!("Error! {}", e),
     }
 }
 
@@ -170,6 +175,9 @@ pub mod android {
     use jni::JNIEnv;
     use std::sync::Mutex;
 
+    use android_logger::Config;
+    use log::Level;
+
     lazy_static! {
         static ref RUNNING: Mutex<bool> = Mutex::new(false);
     }
@@ -179,10 +187,17 @@ pub mod android {
         _env: JNIEnv,
         _: JClass,
     ) {
+        android_logger::init_once(
+            Config::default()
+                .with_min_level(Level::Trace)
+                .with_tag("androidsink"),
+        );
         std::thread::spawn(move || {
             let mut running = RUNNING.lock().unwrap();
             *running = true;
+            trace!("running");
             super::run();
+            trace!("stopped running");
             *running = false;
         });
     }
