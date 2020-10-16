@@ -200,13 +200,37 @@ pub mod android {
     }
 
     #[no_mangle]
-    pub unsafe extern "C" fn JNI_OnLoad(jvm: JavaVM, _reserved: *mut c_void) -> jint {
+    unsafe fn JNI_OnLoad(jvm: JavaVM, _reserved: *mut c_void) -> jint {
         android_logger::init_once(
             Config::default()
                 .with_min_level(Level::Trace)
                 .with_tag("androidsink"),
         );
         trace!("onload");
+
+        let env;
+        match jvm.get_env() {
+            Ok(v) => {
+                env = v;
+            }
+            Err(e) => {
+                trace!("Error: {}", e);
+                return 0;
+            }
+        }
+
+        let version: jint;
+        match env.get_version() {
+            Ok(v) => {
+                version = v.into();
+                trace!("JNI Version: {:#x?}", version);
+            }
+            Err(e) => {
+                trace!("Error: {}", e);
+                return 0;
+            }
+        }
+
         JNIVersion::V4.into()
     }
 }
