@@ -172,7 +172,9 @@ pub fn run() {
 #[allow(non_snake_case)]
 pub mod android {
     use jni::objects::JClass;
-    use jni::JNIEnv;
+    use jni::sys::jint;
+    use jni::{JNIEnv, JNIVersion, JavaVM};
+    use libc::c_void;
     use std::sync::Mutex;
 
     use android_logger::Config;
@@ -187,11 +189,6 @@ pub mod android {
         _env: JNIEnv,
         _: JClass,
     ) {
-        android_logger::init_once(
-            Config::default()
-                .with_min_level(Level::Trace)
-                .with_tag("androidsink"),
-        );
         std::thread::spawn(move || {
             let mut running = RUNNING.lock().unwrap();
             *running = true;
@@ -200,5 +197,16 @@ pub mod android {
             trace!("stopped running");
             *running = false;
         });
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn JNI_OnLoad(jvm: JavaVM, _reserved: *mut c_void) -> jint {
+        android_logger::init_once(
+            Config::default()
+                .with_min_level(Level::Trace)
+                .with_tag("androidsink"),
+        );
+        trace!("onload");
+        JNIVersion::V4.into()
     }
 }
