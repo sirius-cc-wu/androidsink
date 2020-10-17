@@ -171,7 +171,7 @@ pub fn run() {
 #[cfg(target_os = "android")]
 #[allow(non_snake_case)]
 pub mod android {
-    use jni::objects::JClass;
+    use jni::objects::{JClass, JObject};
     use jni::sys::jint;
     use jni::{JNIEnv, JavaVM};
     use libc::c_void;
@@ -197,6 +197,15 @@ pub mod android {
             trace!("stopped running");
             *running = false;
         });
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
+        _env: JNIEnv,
+        _: JClass,
+        _context: JObject,
+    ) {
+        trace!("GStreamer.init()");
     }
 
     #[no_mangle]
