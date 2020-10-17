@@ -173,7 +173,7 @@ pub fn run() {
 pub mod android {
     use jni::objects::JClass;
     use jni::sys::jint;
-    use jni::{JNIEnv, JNIVersion, JavaVM};
+    use jni::{JNIEnv, JavaVM};
     use libc::c_void;
     use std::sync::Mutex;
 
@@ -208,16 +208,18 @@ pub mod android {
         );
         trace!("onload");
 
-        let env;
+        let env: JNIEnv;
         match jvm.get_env() {
             Ok(v) => {
                 env = v;
             }
             Err(e) => {
-                trace!("Error: {}", e);
+                trace!("Could not retrieve JNIEnv, error: {}", e);
                 return 0;
             }
         }
+
+        // TODO: check the version > JNI_VERSION_1_4
 
         let version: jint;
         match env.get_version() {
@@ -226,11 +228,22 @@ pub mod android {
                 trace!("JNI Version: {:#x?}", version);
             }
             Err(e) => {
-                trace!("Error: {}", e);
+                trace!("Could not retrieve JNI version, error: {}", e);
                 return 0;
             }
         }
 
-        JNIVersion::V4.into()
+        match env.find_class("org/freedesktop/gstreamer/GStreamer") {
+            Ok(_c) => {}
+            Err(e) => {
+                trace!(
+                    "Could not retreive class org.freedesktop.gstreamer.GStreamer, error: {}",
+                    e
+                );
+                return 0;
+            }
+        }
+
+        version
     }
 }
