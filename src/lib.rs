@@ -164,7 +164,7 @@ fn main_loop(pipeline: gst::Pipeline) -> Result<(), Error> {
 pub fn run() {
     match create_pipeline().and_then(main_loop) {
         Ok(r) => r,
-        Err(e) => trace!("Error! {}", e),
+        Err(e) => trace!("{}:{}:{}", file!(), line!(), e),
     }
 }
 
@@ -262,52 +262,36 @@ pub mod android {
         }
 
         {
-            trace!("load androidmedia");
-
-            /* Tell the androidmedia plugin about the Java VM if we can */
-            let lib = match Library::open("libgstandroidmedia.so") {
-                Ok(l) => l,
-                Err(e) => {
-                    trace!("Could not open library, error: {}", e);
-                    return 0;
-                }
-            };
-
-            match lib
-                .symbol::<unsafe extern "C" fn(*mut jni::sys::JavaVM)>("gst_amc_jni_set_java_vm")
-            {
-                Ok(set_java_vm) => {
-                    set_java_vm(jvm.get_java_vm_pointer());
-                }
-                Err(e) => {
-                    trace!("Could not retrieve function gst_amc_jni_set_java_vm, {}", e);
-                    // return 0;
-                }
-            };
-
-            /* Remember libandroidmedia */
-            match PLUGINS.lock() {
-                Ok(mut p) => p.push(lib),
-                Err(e) => {
-                    trace!("Could not store libandroidmedia, error: {}", e);
-                    return 0;
-                }
-            }
-
             trace!("load plugins");
-            let plugins = ["audiotestsrc"];
+            let plugins = ["androidmedia", "audiotestsrc"];
             for name in &plugins {
                 let mut so_name = String::from("libgst");
                 so_name.push_str(name);
                 so_name.push_str(".so");
+                trace!("loading {}", so_name);
                 match Library::open(&so_name) {
-                    Ok(lib) => match PLUGINS.lock() {
-                        Ok(mut p) => p.push(lib),
-                        Err(e) => {
-                            trace!("{}", e);
-                            return 0;
+                    Ok(lib) => {
+                        // Register plugin
+                        let mut plugin_register = String::from("gst_plugin_");
+                        plugin_register.push_str(name);
+                        plugin_register.push_str("_register");
+                        trace!("registering {}", so_name);
+                        match lib.symbol::<unsafe extern "C" fn()>(&plugin_register) {
+                            Ok(f) => f(),
+                            Err(e) => {
+                                trace!("{}", e);
+                                return 0;
+                            }
                         }
-                    },
+                        // Keep plugin
+                        match PLUGINS.lock() {
+                            Ok(mut p) => p.push(lib),
+                            Err(e) => {
+                                trace!("{}", e);
+                                return 0;
+                            }
+                        }
+                    }
                     Err(e) => {
                         trace!("{}", e);
                     }
