@@ -171,6 +171,7 @@ pub fn run() {
 #[cfg(target_os = "android")]
 #[allow(non_snake_case)]
 pub mod android {
+    use dlopen::symbor::Library;
     use jni::objects::{JClass, JObject};
     use jni::sys::jint;
     use jni::{JNIEnv, JavaVM};
@@ -182,6 +183,8 @@ pub mod android {
 
     lazy_static! {
         static ref RUNNING: Mutex<bool> = Mutex::new(false);
+        static ref JAVA_VM: Mutex<Option<JavaVM>> = Mutex::new(None);
+        static ref LIB_ANDROID_MEDIA: Mutex<Option<Library>> = Mutex::new(None);
     }
 
     #[no_mangle]
@@ -215,7 +218,8 @@ pub mod android {
                 .with_min_level(Level::Trace)
                 .with_tag("androidsink"),
         );
-        trace!("onload");
+
+        trace!("get JNIEnv");
 
         let env: JNIEnv;
         match jvm.get_env() {
@@ -230,6 +234,8 @@ pub mod android {
 
         // TODO: check the version > JNI_VERSION_1_4
 
+        trace!("get JNI version");
+
         let version: jint;
         match env.get_version() {
             Ok(v) => {
@@ -242,6 +248,8 @@ pub mod android {
             }
         }
 
+        trace!("find class GStreamer");
+
         match env.find_class("org/freedesktop/gstreamer/GStreamer") {
             Ok(_c) => {}
             Err(e) => {
@@ -250,6 +258,51 @@ pub mod android {
                     e
                 );
                 return 0;
+            }
+        }
+
+        {
+            trace!("load androidmedia");
+
+            /* Tell the androidmedia plugin about the Java VM if we can */
+            let lib = match Library::open("libgstandroidmedia.so") {
+                Ok(l) => l,
+                Err(e) => {
+                    trace!("Could not open library, error: {}", e);
+                    return 0;
+                }
+            };
+
+            match lib
+                .symbol::<unsafe extern "C" fn(*mut jni::sys::JavaVM)>("gst_amc_jni_set_java_vm")
+            {
+                Ok(set_java_vm) => {
+                    set_java_vm(jvm.get_java_vm_pointer());
+                }
+                Err(e) => {
+                    trace!("Could not retrieve function gst_amc_jni_set_java_vm, {}", e);
+                    // return 0;
+                }
+            };
+
+            /* Remember libandroidmedia */
+            match LIB_ANDROID_MEDIA.lock() {
+                Ok(mut l) => *l = Some(lib),
+                Err(e) => {
+                    trace!("Could not store libandroidmedia, error: {}", e);
+                    return 0;
+                }
+            }
+
+            trace!("save java vm");
+
+            /* Remember Java VM */
+            match JAVA_VM.lock() {
+                Ok(mut vm) => *vm = Some(jvm),
+                Err(e) => {
+                    trace!("Could not store jvm, error: {}", e);
+                    return 0;
+                }
             }
         }
 
