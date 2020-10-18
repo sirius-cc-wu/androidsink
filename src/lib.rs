@@ -263,7 +263,7 @@ pub mod android {
 
         {
             trace!("load plugins");
-            let plugins = ["androidmedia", "audiotestsrc"];
+            let plugins = ["coreelements", "androidmedia", "audiotestsrc"];
             for name in &plugins {
                 let mut so_name = String::from("libgst");
                 so_name.push_str(name);
