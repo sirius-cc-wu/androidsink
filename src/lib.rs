@@ -184,7 +184,7 @@ pub mod android {
     lazy_static! {
         static ref RUNNING: Mutex<bool> = Mutex::new(false);
         static ref JAVA_VM: Mutex<Option<JavaVM>> = Mutex::new(None);
-        static ref LIB_ANDROID_MEDIA: Mutex<Option<Library>> = Mutex::new(None);
+        static ref PLUGINS: Mutex<Vec<Library>> = Mutex::new(Vec::new());
     }
 
     #[no_mangle]
@@ -286,12 +286,32 @@ pub mod android {
             };
 
             /* Remember libandroidmedia */
-            match LIB_ANDROID_MEDIA.lock() {
-                Ok(mut l) => *l = Some(lib),
+            match PLUGINS.lock() {
+                Ok(mut p) => p.push(lib),
                 Err(e) => {
                     trace!("Could not store libandroidmedia, error: {}", e);
                     return 0;
                 }
+            }
+
+            trace!("load plugins");
+            let plugins = ["audiotestsrc"];
+            for name in &plugins {
+                let mut so_name = String::from("libgst");
+                so_name.push_str(name);
+                so_name.push_str(".so");
+                match Library::open(&so_name) {
+                    Ok(lib) => match PLUGINS.lock() {
+                        Ok(mut p) => p.push(lib),
+                        Err(e) => {
+                            trace!("{}", e);
+                            return 0;
+                        }
+                    },
+                    Err(e) => {
+                        trace!("{}", e);
+                    }
+                };
             }
 
             trace!("save java vm");
