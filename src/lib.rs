@@ -28,8 +28,6 @@ struct ErrorMessage {
 }
 
 fn create_pipeline() -> Result<gst::Pipeline, Error> {
-    gst::init()?;
-
     let pipeline = gst::Pipeline::new(None);
     let src = gst::ElementFactory::make("audiotestsrc", None)
         .map_err(|_| MissingElement("audiotestsrc"))?;
@@ -175,16 +173,22 @@ pub mod android {
     use jni::objects::{JClass, JObject};
     use jni::sys::jint;
     use jni::{JNIEnv, JavaVM};
-    use libc::c_void;
+    use libc::{c_void, pthread_self};
+    use std::fmt::Write;
     use std::sync::Mutex;
 
     use android_logger::Config;
     use log::Level;
 
+    use glib::{Cast, ObjectExt};
+    use gst::util_get_timestamp;
+    use gst::{ClockTime, DebugCategory, DebugLevel, DebugMessage, GstObjectExt, Pad};
+
     lazy_static! {
         static ref RUNNING: Mutex<bool> = Mutex::new(false);
         static ref JAVA_VM: Mutex<Option<JavaVM>> = Mutex::new(None);
         static ref PLUGINS: Mutex<Vec<Library>> = Mutex::new(Vec::new());
+        static ref PRIV_GST_INFO_START_TIME: Mutex<ClockTime> = Mutex::new(ClockTime::none());
     }
 
     #[no_mangle]
@@ -209,6 +213,109 @@ pub mod android {
         _context: JObject,
     ) {
         trace!("GStreamer.init()");
+    }
+
+    fn print_info(msg: &str) {
+        log!(Level::Info, "{}", msg);
+    }
+
+    fn print_error(msg: &str) {
+        log!(Level::Error, "{}", msg);
+    }
+
+    fn log_target(target: &str, level: glib::LogLevel, msg: &str) {
+        let l: Level = match level {
+            glib::LogLevel::Error => Level::Error,
+            glib::LogLevel::Critical => Level::Error,
+            glib::LogLevel::Warning => Level::Warn,
+            glib::LogLevel::Message => Level::Info,
+            glib::LogLevel::Info => Level::Info,
+            glib::LogLevel::Debug => Level::Debug,
+        };
+        log!(target: target, l, "{}", msg);
+    }
+
+    fn debug_logcat(
+        category: DebugCategory,
+        level: DebugLevel,
+        file: &str,
+        function: &str,
+        line: u32,
+        object: Option<&glib::object::Object>,
+        message: &DebugMessage,
+    ) {
+        if level > category.get_threshold() {
+            return;
+        }
+
+        let elapsed;
+        match PRIV_GST_INFO_START_TIME.lock() {
+            Ok(t) => {
+                elapsed = *t - util_get_timestamp();
+            }
+            Err(e) => {
+                trace!("{}", e);
+                elapsed = ClockTime::none();
+            }
+        }
+
+        let lvl = match level {
+            DebugLevel::Error => Level::Error,
+            DebugLevel::Warning => Level::Warn,
+            DebugLevel::Info => Level::Info,
+            DebugLevel::Debug => Level::Debug,
+            _ => Level::Trace,
+        };
+
+        let tag = String::from("GStreamer+") + category.get_name();
+        let mut label = String::new();
+        match object {
+            Some(obj) => {
+                if obj.is::<Pad>() {
+                    let pad = obj.downcast_ref::<Pad>().unwrap();
+                    let name = pad.get_name();
+                    let parent_name;
+                    match pad.get_parent() {
+                        Some(parent) => {
+                            parent_name = parent.get_name().to_string();
+                        }
+                        None => {
+                            parent_name = "".to_string();
+                        }
+                    }
+                    write!(&mut label, "<{}:{}>", parent_name, name).unwrap();
+                } else if obj.is::<gst::Object>() {
+                    let ob = obj.downcast_ref::<gst::Object>().unwrap();
+                    let name = ob.get_name().to_string();
+                    write!(&mut label, "<{}>", name).unwrap();
+                } else {
+                    write!(&mut label, "<{}@{:#x?}>", obj.get_type(), obj).unwrap();
+                }
+                log!(
+                    target: &tag,
+                    lvl,
+                    "{} {:#x?} {}:{}:{}:{} {}",
+                    elapsed,
+                    unsafe { pthread_self() },
+                    file,
+                    line,
+                    function,
+                    label,
+                    message.get().unwrap()
+                )
+            }
+            None => log!(
+                target: &tag,
+                lvl,
+                "{} {:#x?} {}:{}:{} {}",
+                elapsed,
+                unsafe { pthread_self() },
+                file,
+                line,
+                function,
+                message.get().unwrap()
+            ),
+        }
     }
 
     #[no_mangle]
@@ -257,6 +364,38 @@ pub mod android {
                     "Could not retreive class org.freedesktop.gstreamer.GStreamer, error: {}",
                     e
                 );
+                return 0;
+            }
+        }
+
+        // Set GLIB print handlers
+        trace!("set glib handlers");
+        glib::set_print_handler(print_info);
+        glib::set_printerr_handler(print_error);
+        glib::log_set_default_handler(log_target);
+
+        // Disable this for releases if performance is important
+        // or increase the threshold to get more information
+        gst::debug_set_active(true);
+        gst::debug_set_default_threshold(gst::DebugLevel::Warning);
+        gst::debug_remove_default_log_function();
+        gst::debug_add_log_function(debug_logcat);
+
+        match PRIV_GST_INFO_START_TIME.lock() {
+            Ok(mut t) => {
+                *t = util_get_timestamp();
+            }
+            Err(e) => {
+                trace!("{}", e);
+                return 0;
+            }
+        }
+
+        trace!("gst init");
+        match gst::init() {
+            Ok(_) => { /* Do nothing. */ }
+            Err(e) => {
+                trace!("{}", e);
                 return 0;
             }
         }
