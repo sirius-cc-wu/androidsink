@@ -184,8 +184,9 @@ pub mod android {
     use gst::util_get_timestamp;
     use gst::{ClockTime, DebugCategory, DebugLevel, DebugMessage, GstObjectExt, Pad};
 
+    static mut RUNNING: bool = false;
+
     lazy_static! {
-        static ref RUNNING: Mutex<bool> = Mutex::new(false);
         static ref JAVA_VM: Mutex<Option<JavaVM>> = Mutex::new(None);
         static ref PLUGINS: Mutex<Vec<Library>> = Mutex::new(Vec::new());
         static ref PRIV_GST_INFO_START_TIME: Mutex<ClockTime> = Mutex::new(ClockTime::none());
@@ -196,14 +197,15 @@ pub mod android {
         _env: JNIEnv,
         _: JClass,
     ) {
-        std::thread::spawn(move || {
-            let mut running = RUNNING.lock().unwrap();
-            *running = true;
+        if !RUNNING {
+            RUNNING = true;
             trace!("running");
-            super::run();
-            trace!("stopped running");
-            *running = false;
-        });
+            std::thread::spawn(move || {
+                super::run();
+                trace!("stopped running");
+                RUNNING = false;
+            });
+        }
     }
 
     fn print_info(msg: &str) {
