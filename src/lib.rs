@@ -1,6 +1,4 @@
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate log;
 
 use gst::gst_element_error;
@@ -175,7 +173,6 @@ pub mod android {
     use jni::{JNIEnv, JavaVM};
     use libc::{c_void, pthread_self};
     use std::fmt::Write;
-    use std::sync::Mutex;
 
     use android_logger::Config;
     use log::Level;
@@ -186,11 +183,8 @@ pub mod android {
 
     static mut RUNNING: bool = false;
     static mut JAVA_VM: Option<JavaVM> = None;
-
-    lazy_static! {
-        static ref PLUGINS: Mutex<Vec<Library>> = Mutex::new(Vec::new());
-        static ref PRIV_GST_INFO_START_TIME: Mutex<ClockTime> = Mutex::new(ClockTime::none());
-    }
+    static mut PLUGINS: Vec<Library> = Vec::new();
+    static mut GST_INFO_START_TIME: ClockTime = ClockTime(None);
 
     #[no_mangle]
     pub unsafe extern "C" fn Java_tw_mapacode_androidsink_AndroidSink_nativeRun(
@@ -241,17 +235,7 @@ pub mod android {
             return;
         }
 
-        let elapsed;
-        match PRIV_GST_INFO_START_TIME.lock() {
-            Ok(t) => {
-                let now = util_get_timestamp();
-                elapsed = now - *t;
-            }
-            Err(e) => {
-                trace!("Cannot get PRIV_GST_INFO_START_TIME, {}", e);
-                elapsed = ClockTime::none();
-            }
-        }
+        let elapsed = util_get_timestamp() - unsafe { GST_INFO_START_TIME };
 
         let lvl = match level {
             DebugLevel::Error => Level::Error,
@@ -344,15 +328,7 @@ pub mod android {
         gst::debug_remove_default_log_function();
         gst::debug_add_log_function(debug_logcat);
 
-        match PRIV_GST_INFO_START_TIME.lock() {
-            Ok(mut t) => {
-                *t = util_get_timestamp();
-            }
-            Err(e) => {
-                trace!("{}", e);
-                return;
-            }
-        }
+        GST_INFO_START_TIME = util_get_timestamp();
 
         trace!("gst init");
         match gst::init() {
@@ -385,12 +361,7 @@ pub mod android {
                             }
                         }
                         // Keep plugin
-                        match PLUGINS.lock() {
-                            Ok(mut p) => p.push(lib),
-                            Err(e) => {
-                                trace!("{}", e);
-                            }
-                        }
+                        PLUGINS.push(lib);
                     }
                     Err(e) => {
                         trace!("{}", e);
