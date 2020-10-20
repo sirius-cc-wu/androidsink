@@ -319,6 +319,23 @@ pub mod android {
     }
 
     #[no_mangle]
+    pub unsafe extern "C" fn gst_android_get_java_vm() -> *const jni::sys::JavaVM {
+        match JAVA_VM.lock() {
+            Ok(opt_vm) => match &*opt_vm {
+                Some(vm) => vm.get_java_vm_pointer(),
+                None => {
+                    trace!("Could not get jvm");
+                    return std::ptr::null();
+                }
+            },
+            Err(e) => {
+                trace!("Could not get jvm, error: {}", e);
+                return std::ptr::null();
+            }
+        }
+    }
+
+    #[no_mangle]
     unsafe fn JNI_OnLoad(jvm: JavaVM, _reserved: *mut c_void) -> jint {
         android_logger::init_once(
             Config::default()
@@ -364,6 +381,17 @@ pub mod android {
                     "Could not retreive class org.freedesktop.gstreamer.GStreamer, error: {}",
                     e
                 );
+                return 0;
+            }
+        }
+
+        trace!("save java vm");
+
+        /* Remember Java VM */
+        match JAVA_VM.lock() {
+            Ok(mut vm) => *vm = Some(jvm),
+            Err(e) => {
+                trace!("Could not store jvm, error: {}", e);
                 return 0;
             }
         }
@@ -435,17 +463,6 @@ pub mod android {
                         trace!("{}", e);
                     }
                 };
-            }
-
-            trace!("save java vm");
-
-            /* Remember Java VM */
-            match JAVA_VM.lock() {
-                Ok(mut vm) => *vm = Some(jvm),
-                Err(e) => {
-                    trace!("Could not store jvm, error: {}", e);
-                    return 0;
-                }
             }
         }
 
