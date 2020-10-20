@@ -168,7 +168,7 @@ pub fn run() {
 #[allow(non_snake_case)]
 pub mod android {
     use dlopen::symbor::Library;
-    use jni::objects::{JClass, JObject};
+    use jni::objects::{GlobalRef, JClass, JObject};
     use jni::sys::jint;
     use jni::{JNIEnv, JavaVM};
     use libc::{c_void, pthread_self};
@@ -185,6 +185,8 @@ pub mod android {
     static mut JAVA_VM: Option<JavaVM> = None;
     static mut PLUGINS: Vec<Library> = Vec::new();
     static mut GST_INFO_START_TIME: ClockTime = ClockTime(None);
+    static mut CONTEXT: Option<GlobalRef> = None;
+    static mut CLASS_LOADER: Option<GlobalRef> = None;
 
     #[no_mangle]
     pub unsafe extern "C" fn Java_tw_mapacode_androidsink_AndroidSink_nativeRun(
@@ -308,12 +310,63 @@ pub mod android {
     }
 
     #[no_mangle]
+    pub unsafe extern "C" fn gst_android_get_application_context() -> jni::sys::jobject {
+        match &CONTEXT {
+            Some(c) => c.as_obj().into_inner(),
+            None => std::ptr::null_mut(),
+        }
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn gst_android_get_application_class_loader() -> jni::sys::jobject {
+        match &CLASS_LOADER {
+            Some(o) => o.as_obj().into_inner(),
+            None => std::ptr::null_mut(),
+        }
+    }
+
+    #[no_mangle]
     pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
-        _env: JNIEnv,
+        env: JNIEnv,
         _: JClass,
-        _context: JObject,
+        context: JObject,
     ) {
         trace!("GStreamer.init()");
+
+        // Store context and class cloader.
+        match env.call_method(context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[]) {
+            Ok(loader) => {
+                match loader {
+                    jni::objects::JValue::Object(obj) => {
+                        CONTEXT = env.new_global_ref(context).ok();
+                        CLASS_LOADER = env.new_global_ref(obj).ok();
+                        match env.exception_check() {
+                            Ok(value) => {
+                                if value {
+                                    env.exception_describe().unwrap();
+                                    env.exception_clear().unwrap();
+                                    return;
+                                } else {
+                                    // Do nothing.
+                                }
+                            }
+                            Err(e) => {
+                                trace!("{}", e);
+                                return;
+                            }
+                        }
+                    }
+                    _ => {
+                        trace!("Could not get class loader");
+                        return;
+                    }
+                }
+            }
+            Err(e) => {
+                trace!("{}", e);
+                return;
+            }
+        }
 
         // Set GLIB print handlers
         trace!("set glib handlers");
