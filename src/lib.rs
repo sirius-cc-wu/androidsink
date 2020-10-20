@@ -206,15 +206,6 @@ pub mod android {
         });
     }
 
-    #[no_mangle]
-    pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
-        _env: JNIEnv,
-        _: JClass,
-        _context: JObject,
-    ) {
-        trace!("GStreamer.init()");
-    }
-
     fn print_info(msg: &str) {
         log!(Level::Info, "{}", msg);
     }
@@ -337,6 +328,83 @@ pub mod android {
     }
 
     #[no_mangle]
+    pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
+        _env: JNIEnv,
+        _: JClass,
+        _context: JObject,
+    ) {
+        trace!("GStreamer.init()");
+
+        // Set GLIB print handlers
+        trace!("set glib handlers");
+        glib::set_print_handler(print_info);
+        glib::set_printerr_handler(print_error);
+        glib::log_set_default_handler(log_target);
+
+        // Disable this for releases if performance is important
+        // or increase the threshold to get more information
+        gst::debug_set_active(true);
+        gst::debug_set_default_threshold(gst::DebugLevel::Warning);
+        gst::debug_remove_default_log_function();
+        gst::debug_add_log_function(debug_logcat);
+
+        match PRIV_GST_INFO_START_TIME.lock() {
+            Ok(mut t) => {
+                *t = util_get_timestamp();
+            }
+            Err(e) => {
+                trace!("{}", e);
+                return;
+            }
+        }
+
+        trace!("gst init");
+        match gst::init() {
+            Ok(_) => { /* Do nothing. */ }
+            Err(e) => {
+                trace!("{}", e);
+                return;
+            }
+        }
+
+        {
+            trace!("load plugins");
+            let plugins = ["coreelements", "androidmedia", "audiotestsrc"];
+            for name in &plugins {
+                let mut so_name = String::from("libgst");
+                so_name.push_str(name);
+                so_name.push_str(".so");
+                trace!("loading {}", so_name);
+                match Library::open(&so_name) {
+                    Ok(lib) => {
+                        // Register plugin
+                        let mut plugin_register = String::from("gst_plugin_");
+                        plugin_register.push_str(name);
+                        plugin_register.push_str("_register");
+                        trace!("registering {}", so_name);
+                        match lib.symbol::<unsafe extern "C" fn()>(&plugin_register) {
+                            Ok(f) => f(),
+                            Err(e) => {
+                                trace!("{}", e);
+                            }
+                        }
+                        // Keep plugin
+                        match PLUGINS.lock() {
+                            Ok(mut p) => p.push(lib),
+                            Err(e) => {
+                                trace!("{}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        trace!("{}", e);
+                    }
+                };
+            }
+        }
+    }
+
+    #[no_mangle]
     unsafe fn JNI_OnLoad(jvm: JavaVM, _reserved: *mut c_void) -> jint {
         android_logger::init_once(
             Config::default()
@@ -394,76 +462,6 @@ pub mod android {
             Err(e) => {
                 trace!("Could not store jvm, error: {}", e);
                 return 0;
-            }
-        }
-
-        // Set GLIB print handlers
-        trace!("set glib handlers");
-        glib::set_print_handler(print_info);
-        glib::set_printerr_handler(print_error);
-        glib::log_set_default_handler(log_target);
-
-        // Disable this for releases if performance is important
-        // or increase the threshold to get more information
-        gst::debug_set_active(true);
-        gst::debug_set_default_threshold(gst::DebugLevel::Warning);
-        gst::debug_remove_default_log_function();
-        gst::debug_add_log_function(debug_logcat);
-
-        match PRIV_GST_INFO_START_TIME.lock() {
-            Ok(mut t) => {
-                *t = util_get_timestamp();
-            }
-            Err(e) => {
-                trace!("{}", e);
-                return 0;
-            }
-        }
-
-        trace!("gst init");
-        match gst::init() {
-            Ok(_) => { /* Do nothing. */ }
-            Err(e) => {
-                trace!("{}", e);
-                return 0;
-            }
-        }
-
-        {
-            trace!("load plugins");
-            let plugins = ["coreelements", "androidmedia", "audiotestsrc"];
-            for name in &plugins {
-                let mut so_name = String::from("libgst");
-                so_name.push_str(name);
-                so_name.push_str(".so");
-                trace!("loading {}", so_name);
-                match Library::open(&so_name) {
-                    Ok(lib) => {
-                        // Register plugin
-                        let mut plugin_register = String::from("gst_plugin_");
-                        plugin_register.push_str(name);
-                        plugin_register.push_str("_register");
-                        trace!("registering {}", so_name);
-                        match lib.symbol::<unsafe extern "C" fn()>(&plugin_register) {
-                            Ok(f) => f(),
-                            Err(e) => {
-                                trace!("{}", e);
-                                return 0;
-                            }
-                        }
-                        // Keep plugin
-                        match PLUGINS.lock() {
-                            Ok(mut p) => p.push(lib),
-                            Err(e) => {
-                                trace!("{}", e);
-                                return 0;
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        trace!("{}", e);
-                    }
-                };
             }
         }
 
