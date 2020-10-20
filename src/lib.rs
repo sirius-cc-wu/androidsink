@@ -253,7 +253,6 @@ pub mod android {
             Ok(t) => {
                 let now = util_get_timestamp();
                 elapsed = now - *t;
-                trace!("now: {}, start: {}, elapsed: {}", now, *t, elapsed);
             }
             Err(e) => {
                 trace!("Cannot get PRIV_GST_INFO_START_TIME, {}", e);
