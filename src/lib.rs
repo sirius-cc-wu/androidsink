@@ -185,9 +185,9 @@ pub mod android {
     use gst::{ClockTime, DebugCategory, DebugLevel, DebugMessage, GstObjectExt, Pad};
 
     static mut RUNNING: bool = false;
+    static mut JAVA_VM: Option<JavaVM> = None;
 
     lazy_static! {
-        static ref JAVA_VM: Mutex<Option<JavaVM>> = Mutex::new(None);
         static ref PLUGINS: Mutex<Vec<Library>> = Mutex::new(Vec::new());
         static ref PRIV_GST_INFO_START_TIME: Mutex<ClockTime> = Mutex::new(ClockTime::none());
     }
@@ -314,16 +314,10 @@ pub mod android {
 
     #[no_mangle]
     pub unsafe extern "C" fn gst_android_get_java_vm() -> *const jni::sys::JavaVM {
-        match JAVA_VM.lock() {
-            Ok(opt_vm) => match &*opt_vm {
-                Some(vm) => vm.get_java_vm_pointer(),
-                None => {
-                    trace!("Could not get jvm");
-                    return std::ptr::null();
-                }
-            },
-            Err(e) => {
-                trace!("Could not get jvm, error: {}", e);
+        match &JAVA_VM {
+            Some(vm) => vm.get_java_vm_pointer(),
+            None => {
+                trace!("Could not get jvm");
                 return std::ptr::null();
             }
         }
@@ -459,13 +453,7 @@ pub mod android {
         trace!("save java vm");
 
         /* Remember Java VM */
-        match JAVA_VM.lock() {
-            Ok(mut vm) => *vm = Some(jvm),
-            Err(e) => {
-                trace!("Could not store jvm, error: {}", e);
-                return 0;
-            }
-        }
+        JAVA_VM = Some(jvm);
 
         version
     }
