@@ -251,10 +251,12 @@ pub mod android {
         let elapsed;
         match PRIV_GST_INFO_START_TIME.lock() {
             Ok(t) => {
-                elapsed = *t - util_get_timestamp();
+                let now = util_get_timestamp();
+                elapsed = now - *t;
+                trace!("now: {}, start: {}, elapsed: {}", now, *t, elapsed);
             }
             Err(e) => {
-                trace!("{}", e);
+                trace!("Cannot get PRIV_GST_INFO_START_TIME, {}", e);
                 elapsed = ClockTime::none();
             }
         }
