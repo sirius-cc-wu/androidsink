@@ -26,14 +26,20 @@ struct ErrorMessage {
 }
 
 fn create_pipeline() -> Result<gst::Pipeline, Error> {
+    trace!("creating pipeline");
     let pipeline = gst::Pipeline::new(None);
+    trace!("creating audiotestsrc");
     let src = gst::ElementFactory::make("audiotestsrc", None)
         .map_err(|_| MissingElement("audiotestsrc"))?;
+    trace!("creating appsink");
     let sink = gst::ElementFactory::make("appsink", None).map_err(|_| MissingElement("appsink"))?;
 
+    trace!("add src and sink");
     pipeline.add_many(&[&src, &sink])?;
+    trace!("link src and sink");
     src.link(&sink)?;
 
+    trace!("cast sink to Appsink");
     let appsink = sink
         .dynamic_cast::<gst_app::AppSink>()
         .expect("Sink element is expected to be an appsink!");
@@ -42,6 +48,7 @@ fn create_pipeline() -> Result<gst::Pipeline, Error> {
     // provide the format we request.
     // This can be set after linking the two objects, because format negotiation between
     // both elements will happen during pre-rolling of the pipeline.
+    trace!("set caps");
     appsink.set_caps(Some(&gst::Caps::new_simple(
         "audio/x-raw",
         &[
@@ -54,6 +61,7 @@ fn create_pipeline() -> Result<gst::Pipeline, Error> {
 
     // Getting data out of the appsink is done by setting callbacks on it.
     // The appsink will then call those handlers, as soon as data is available.
+    trace!("set callbacks");
     appsink.set_callbacks(
         gst_app::AppSinkCallbacks::builder()
             // Add a handler to the "new-sample" signal.
@@ -117,6 +125,7 @@ fn create_pipeline() -> Result<gst::Pipeline, Error> {
             .build(),
     );
 
+    trace!("pipeline created");
     Ok(pipeline)
 }
 
@@ -394,7 +403,35 @@ pub mod android {
 
         {
             trace!("load plugins");
-            let plugins = ["coreelements", "androidmedia", "audiotestsrc", "app"];
+            let mut plugins_core = vec![
+                "coreelements",
+                "coretracers",
+                "adder",
+                "app",
+                "audioconvert",
+                "audiomixer",
+                "audiorate",
+                "audioresample",
+                "audiotestsrc",
+                "compositor",
+                "gio",
+                "overlaycomposition",
+                "pango",
+                "rawparse",
+                "typefindfunctions",
+                "videoconvert",
+                "videorate",
+                "videoscale",
+                "videotestsrc",
+                "volume",
+                "autodetect",
+                "videofilter",
+            ];
+            let mut plugins_codecs = vec!["androidmedia"];
+            let mut plugins = Vec::new();
+            plugins.append(&mut plugins_core);
+            plugins.append(&mut plugins_codecs);
+
             for name in &plugins {
                 let mut so_name = String::from("libgst");
                 so_name.push_str(name);
