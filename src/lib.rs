@@ -196,6 +196,7 @@ pub mod android {
     static mut GST_INFO_START_TIME: ClockTime = ClockTime(None);
     static mut CONTEXT: Option<GlobalRef> = None;
     static mut CLASS_LOADER: Option<GlobalRef> = None;
+    static mut GST_DEBUG_LOG_FUNCTION: Option<gst::DebugLogFunction> = None;
 
     #[no_mangle]
     pub unsafe extern "C" fn Java_tw_mapacode_androidsink_AndroidSink_nativeRun(
@@ -423,7 +424,7 @@ pub mod android {
         gst::debug_set_active(true);
         gst::debug_set_default_threshold(gst::DebugLevel::Trace);
         gst::debug_remove_default_log_function();
-        gst::debug_add_log_function(debug_logcat);
+        GST_DEBUG_LOG_FUNCTION = Some(gst::debug_add_log_function(debug_logcat));
 
         GST_INFO_START_TIME = util_get_timestamp();
 
