@@ -186,9 +186,11 @@ pub mod android {
     use android_logger::Config;
     use log::Level;
 
-    use glib::{Cast, ObjectExt};
+    use glib::translate::*;
+    use glib::{Cast, GString, ObjectExt};
     use gst::util_get_timestamp;
     use gst::{ClockTime, DebugCategory, DebugLevel, DebugMessage, GstObjectExt, Pad};
+    use gst_sys;
 
     static mut RUNNING: bool = false;
     static mut JAVA_VM: Option<JavaVM> = None;
@@ -261,21 +263,23 @@ pub mod android {
         match object {
             Some(obj) => {
                 if obj.is::<Pad>() {
-                    let pad = obj.downcast_ref::<Pad>().unwrap();
-                    let name = pad.get_name();
-                    let parent_name;
-                    match pad.get_parent() {
-                        Some(parent) => {
-                            parent_name = parent.get_name().to_string();
-                        }
-                        None => {
-                            parent_name = "".to_string();
-                        }
-                    }
-                    write!(&mut label, "<{}:{}>", parent_name, name).unwrap();
+                    let pad = obj.downcast_ref::<gst::Object>().unwrap();
+                    // Do not use pad.get_name() here because get_name() may fail because the object may not yet fully constructed.
+                    let pad_name: Option<GString> = unsafe {
+                        from_glib_full(gst_sys::gst_object_get_name(pad.to_glib_none().0))
+                    };
+                    let pad_name = pad_name.map_or("".to_string(), |v| v.to_string());
+                    let parent_name = pad
+                        .get_parent()
+                        .map_or("".to_string(), |p| p.get_name().to_string());
+                    write!(&mut label, "<{}:{}>", parent_name, pad_name).unwrap();
                 } else if obj.is::<gst::Object>() {
                     let ob = obj.downcast_ref::<gst::Object>().unwrap();
-                    let name = ob.get_name().to_string();
+                    // Do not use ob.get_name() here because get_name() may fail because the object may not yet fully constructed.
+                    let ob_name: Option<GString> = unsafe {
+                        from_glib_full(gst_sys::gst_object_get_name(ob.to_glib_none().0))
+                    };
+                    let name = ob_name.map_or("".to_string(), |v| v.to_string());
                     write!(&mut label, "<{}>", name).unwrap();
                 } else {
                     write!(&mut label, "<{}@{:#x?}>", obj.get_type(), obj).unwrap();
