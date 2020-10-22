@@ -1,5 +1,5 @@
 #[macro_use]
-extern crate log;
+extern crate gst;
 
 use gst::gst_element_error;
 use gst::prelude::*;
@@ -25,21 +25,31 @@ struct ErrorMessage {
     source: glib::Error,
 }
 
+use once_cell::sync::Lazy;
+
+pub static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
+    gst::DebugCategory::new(
+        "androidsink",
+        gst::DebugColorFlags::empty(),
+        Some("AndroidSink"),
+    )
+});
+
 fn create_pipeline() -> Result<gst::Pipeline, Error> {
-    trace!("creating pipeline");
+    gst_trace!(CAT, "creating pipeline");
     let pipeline = gst::Pipeline::new(None);
-    trace!("creating audiotestsrc");
+    gst_trace!(CAT, "creating audiotestsrc");
     let src = gst::ElementFactory::make("audiotestsrc", None)
         .map_err(|_| MissingElement("audiotestsrc"))?;
-    trace!("creating appsink");
+    gst_trace!(CAT, "creating appsink");
     let sink = gst::ElementFactory::make("appsink", None).map_err(|_| MissingElement("appsink"))?;
 
-    trace!("add src and sink");
+    gst_trace!(CAT, "add src and sink");
     pipeline.add_many(&[&src, &sink])?;
-    trace!("link src and sink");
+    gst_trace!(CAT, "link src and sink");
     src.link(&sink)?;
 
-    trace!("cast sink to Appsink");
+    gst_trace!(CAT, "cast sink to Appsink");
     let appsink = sink
         .dynamic_cast::<gst_app::AppSink>()
         .expect("Sink element is expected to be an appsink!");
@@ -48,7 +58,7 @@ fn create_pipeline() -> Result<gst::Pipeline, Error> {
     // provide the format we request.
     // This can be set after linking the two objects, because format negotiation between
     // both elements will happen during pre-rolling of the pipeline.
-    trace!("set caps");
+    gst_trace!(CAT, "set caps");
     appsink.set_caps(Some(&gst::Caps::new_simple(
         "audio/x-raw",
         &[
@@ -61,7 +71,7 @@ fn create_pipeline() -> Result<gst::Pipeline, Error> {
 
     // Getting data out of the appsink is done by setting callbacks on it.
     // The appsink will then call those handlers, as soon as data is available.
-    trace!("set callbacks");
+    gst_trace!(CAT, "set callbacks");
     appsink.set_callbacks(
         gst_app::AppSinkCallbacks::builder()
             // Add a handler to the "new-sample" signal.
@@ -125,19 +135,19 @@ fn create_pipeline() -> Result<gst::Pipeline, Error> {
             .build(),
     );
 
-    trace!("pipeline created");
+    gst_trace!(CAT, "pipeline created");
     Ok(pipeline)
 }
 
 fn main_loop(pipeline: gst::Pipeline) -> Result<(), Error> {
-    trace!("set pipeline state to playing");
+    gst_trace!(CAT, "set pipeline state to playing");
     pipeline.set_state(gst::State::Playing)?;
 
     let bus = pipeline
         .get_bus()
         .expect("Pipeline without bus. Shouldn't happen!");
 
-    trace!("entering main loop");
+    gst_trace!(CAT, "entering main loop");
     for msg in bus.iter_timed(gst::CLOCK_TIME_NONE) {
         use gst::MessageView;
 
@@ -159,7 +169,7 @@ fn main_loop(pipeline: gst::Pipeline) -> Result<(), Error> {
             _ => (),
         }
     }
-    trace!("leaving main loop");
+    gst_trace!(CAT, "leaving main loop");
 
     pipeline.set_state(gst::State::Null)?;
 
@@ -169,13 +179,14 @@ fn main_loop(pipeline: gst::Pipeline) -> Result<(), Error> {
 pub fn run() {
     match create_pipeline().and_then(main_loop) {
         Ok(r) => r,
-        Err(e) => trace!("{}:{}:{}", file!(), line!(), e),
+        Err(e) => gst_trace!(CAT, "{}:{}:{}", file!(), line!(), e),
     }
 }
 
 #[cfg(target_os = "android")]
 #[allow(non_snake_case)]
 pub mod android {
+    use crate::CAT;
     use dlopen::symbor::Library;
     use jni::objects::{GlobalRef, JClass, JObject};
     use jni::sys::jint;
@@ -206,10 +217,10 @@ pub mod android {
     ) {
         if !RUNNING {
             RUNNING = true;
-            trace!("running");
+            gst_trace!(CAT, "running");
             std::thread::spawn(move || {
                 super::run();
-                trace!("stopped running");
+                gst_trace!(CAT, "stopped running");
                 RUNNING = false;
             });
         }
@@ -337,7 +348,7 @@ pub mod android {
         match &JAVA_VM {
             Some(vm) => vm.get_java_vm_pointer(),
             None => {
-                trace!("Could not get jvm");
+                gst_trace!(CAT, "Could not get jvm");
                 return std::ptr::null();
             }
         }
@@ -365,7 +376,7 @@ pub mod android {
         _: JClass,
         context: JObject,
     ) {
-        trace!("GStreamer.init()");
+        gst_trace!(CAT, "GStreamer.init()");
 
         // Store context and class cloader.
         match env.call_method(context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[]) {
@@ -385,25 +396,25 @@ pub mod android {
                                 }
                             }
                             Err(e) => {
-                                trace!("{}", e);
+                                gst_trace!(CAT, "{}", e);
                                 return;
                             }
                         }
                     }
                     _ => {
-                        trace!("Could not get class loader");
+                        gst_trace!(CAT, "Could not get class loader");
                         return;
                     }
                 }
             }
             Err(e) => {
-                trace!("{}", e);
+                gst_trace!(CAT, "{}", e);
                 return;
             }
         }
 
         // Set GLIB print handlers
-        trace!("set glib handlers");
+        gst_trace!(CAT, "set glib handlers");
         glib::set_print_handler(glib_print_info);
         glib::set_printerr_handler(glib_print_error);
         glib::log_set_default_handler(glib_log_with_domain);
@@ -417,17 +428,17 @@ pub mod android {
 
         GST_INFO_START_TIME = util_get_timestamp();
 
-        trace!("gst init");
+        gst_trace!(CAT, "gst init");
         match gst::init() {
             Ok(_) => { /* Do nothing. */ }
             Err(e) => {
-                trace!("{}", e);
+                gst_trace!(CAT, "{}", e);
                 return;
             }
         }
 
         {
-            trace!("load plugins");
+            gst_trace!(CAT, "load plugins");
             let mut plugins_core = vec![
                 "coreelements",
                 "coretracers",
@@ -461,25 +472,25 @@ pub mod android {
                 let mut so_name = String::from("libgst");
                 so_name.push_str(name);
                 so_name.push_str(".so");
-                trace!("loading {}", so_name);
+                gst_trace!(CAT, "loading {}", so_name);
                 match Library::open(&so_name) {
                     Ok(lib) => {
                         // Register plugin
                         let mut plugin_register = String::from("gst_plugin_");
                         plugin_register.push_str(name);
                         plugin_register.push_str("_register");
-                        trace!("registering {}", so_name);
+                        gst_trace!(CAT, "registering {}", so_name);
                         match lib.symbol::<unsafe extern "C" fn()>(&plugin_register) {
                             Ok(f) => f(),
                             Err(e) => {
-                                trace!("{}", e);
+                                gst_trace!(CAT, "{}", e);
                             }
                         }
                         // Keep plugin
                         PLUGINS.push(lib);
                     }
                     Err(e) => {
-                        trace!("{}", e);
+                        gst_trace!(CAT, "{}", e);
                     }
                 };
             }
@@ -488,7 +499,7 @@ pub mod android {
 
     #[no_mangle]
     unsafe fn JNI_OnLoad(jvm: JavaVM, _reserved: *mut c_void) -> jint {
-        trace!("get JNIEnv");
+        gst_trace!(CAT, "get JNIEnv");
 
         let env: JNIEnv;
         match jvm.get_env() {
@@ -496,33 +507,34 @@ pub mod android {
                 env = v;
             }
             Err(e) => {
-                trace!("Could not retrieve JNIEnv, error: {}", e);
+                gst_trace!(CAT, "Could not retrieve JNIEnv, error: {}", e);
                 return 0;
             }
         }
 
         // TODO: check the version > JNI_VERSION_1_4
 
-        trace!("get JNI version");
+        gst_trace!(CAT, "get JNI version");
 
         let version: jint;
         match env.get_version() {
             Ok(v) => {
                 version = v.into();
-                trace!("JNI Version: {:#x?}", version);
+                gst_trace!(CAT, "JNI Version: {:#x?}", version);
             }
             Err(e) => {
-                trace!("Could not retrieve JNI version, error: {}", e);
+                gst_trace!(CAT, "Could not retrieve JNI version, error: {}", e);
                 return 0;
             }
         }
 
-        trace!("find class GStreamer");
+        gst_trace!(CAT, "find class GStreamer");
 
         match env.find_class("org/freedesktop/gstreamer/GStreamer") {
             Ok(_c) => {}
             Err(e) => {
-                trace!(
+                gst_trace!(
+                    CAT,
                     "Could not retreive class org.freedesktop.gstreamer.GStreamer, error: {}",
                     e
                 );
@@ -530,7 +542,7 @@ pub mod android {
             }
         }
 
-        trace!("save java vm");
+        gst_trace!(CAT, "save java vm");
 
         /* Remember Java VM */
         JAVA_VM = Some(jvm);

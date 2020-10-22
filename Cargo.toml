@@ -15,9 +15,9 @@ glib = "0.10.2"
 byte-slice-cast = "1.0.0"
 anyhow = "1.0.33"
 derive_more = "0.99.11"
-log = "0.4.11"
 libc = "0.2.79"
-dlopen= "0.1.8"
+dlopen = "0.1.8"
+once_cell = "1.4.1"
 
 [target.'cfg(target_os="android")'.dependencies]
 jni = { version = "0.17", default-features = false }

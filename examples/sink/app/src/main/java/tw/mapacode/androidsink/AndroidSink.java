@@ -28,6 +28,7 @@ public class AndroidSink {
 //            }
             // Initialize GStreamer and warn if it fails
             try {
+                Os.setenv("GST_DEBUG", "androidsink:7", true);
                 // Os.setenv("GST_DEBUG", "GST_ELEMENT_FACTORY:7", true);
                 // Os.setenv("GST_DEBUG", "audiotestsrc:6,appsink:6", true);
                 // Os.setenv("GST_DEBUG", "GST_ELEMENT_PADS:6", true);
