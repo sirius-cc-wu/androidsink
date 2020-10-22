@@ -182,9 +182,7 @@ pub mod android {
     use jni::{JNIEnv, JavaVM};
     use libc::{c_void, pthread_self};
     use std::fmt::Write;
-
-    use android_logger::Config;
-    use log::Level;
+    use std::os::raw;
 
     use glib::translate::*;
     use glib::{Cast, GString, ObjectExt};
@@ -215,24 +213,39 @@ pub mod android {
         }
     }
 
-    fn print_info(msg: &str) {
-        log!(Level::Info, "{}", msg);
+    fn glib_print_info(msg: &str) {
+        unsafe {
+            ndk_sys::__android_log_write(
+                ndk_sys::android_LogPriority_ANDROID_LOG_INFO as raw::c_int,
+                "GLib+stdout".as_ptr() as _,
+                msg.as_ptr() as _,
+            );
+        }
     }
 
-    fn print_error(msg: &str) {
-        log!(Level::Error, "{}", msg);
+    fn glib_print_error(msg: &str) {
+        unsafe {
+            ndk_sys::__android_log_write(
+                ndk_sys::android_LogPriority_ANDROID_LOG_ERROR as raw::c_int,
+                "GLib+stderr".as_ptr() as _,
+                msg.as_ptr() as _,
+            );
+        }
     }
 
-    fn log_target(target: &str, level: glib::LogLevel, msg: &str) {
-        let l: Level = match level {
-            glib::LogLevel::Error => Level::Error,
-            glib::LogLevel::Critical => Level::Error,
-            glib::LogLevel::Warning => Level::Warn,
-            glib::LogLevel::Message => Level::Info,
-            glib::LogLevel::Info => Level::Info,
-            glib::LogLevel::Debug => Level::Debug,
+    fn glib_log_with_domain(domain: &str, level: glib::LogLevel, msg: &str) {
+        let prio = match level {
+            glib::LogLevel::Error => ndk_sys::android_LogPriority_ANDROID_LOG_ERROR,
+            glib::LogLevel::Critical => ndk_sys::android_LogPriority_ANDROID_LOG_ERROR,
+            glib::LogLevel::Warning => ndk_sys::android_LogPriority_ANDROID_LOG_WARN,
+            glib::LogLevel::Message => ndk_sys::android_LogPriority_ANDROID_LOG_INFO,
+            glib::LogLevel::Info => ndk_sys::android_LogPriority_ANDROID_LOG_INFO,
+            glib::LogLevel::Debug => ndk_sys::android_LogPriority_ANDROID_LOG_DEBUG,
         };
-        log!(target: target, l, "{}", msg);
+        let tag = String::from("Glib+") + domain;
+        unsafe {
+            ndk_sys::__android_log_write(prio as raw::c_int, tag.as_ptr() as _, msg.as_ptr() as _);
+        }
     }
 
     fn debug_logcat(
@@ -251,11 +264,11 @@ pub mod android {
         let elapsed = util_get_timestamp() - unsafe { GST_INFO_START_TIME };
 
         let lvl = match level {
-            DebugLevel::Error => Level::Error,
-            DebugLevel::Warning => Level::Warn,
-            DebugLevel::Info => Level::Info,
-            DebugLevel::Debug => Level::Debug,
-            _ => Level::Trace,
+            DebugLevel::Error => ndk_sys::android_LogPriority_ANDROID_LOG_ERROR,
+            DebugLevel::Warning => ndk_sys::android_LogPriority_ANDROID_LOG_WARN,
+            DebugLevel::Info => ndk_sys::android_LogPriority_ANDROID_LOG_INFO,
+            DebugLevel::Debug => ndk_sys::android_LogPriority_ANDROID_LOG_DEBUG,
+            _ => ndk_sys::android_LogPriority_ANDROID_LOG_VERBOSE,
         };
 
         let tag = String::from("GStreamer+") + category.get_name();
@@ -284,9 +297,9 @@ pub mod android {
                 } else {
                     write!(&mut label, "<{}@{:#x?}>", obj.get_type(), obj).unwrap();
                 }
-                log!(
-                    target: &tag,
-                    lvl,
+                let mut msg = String::with_capacity(128);
+                write!(
+                    msg,
                     "{} {:#x?} {}:{}:{}:{} {}",
                     elapsed,
                     unsafe { pthread_self() },
@@ -296,18 +309,36 @@ pub mod android {
                     label,
                     message.get().unwrap()
                 )
+                .unwrap();
+                unsafe {
+                    ndk_sys::__android_log_write(
+                        lvl as raw::c_int,
+                        tag.as_ptr() as _,
+                        msg.as_ptr() as _,
+                    );
+                }
             }
-            None => log!(
-                target: &tag,
-                lvl,
-                "{} {:#x?} {}:{}:{} {}",
-                elapsed,
-                unsafe { pthread_self() },
-                file,
-                line,
-                function,
-                message.get().unwrap()
-            ),
+            None => {
+                let mut msg = String::with_capacity(128);
+                write!(
+                    msg,
+                    "{} {:#x?} {}:{}:{} {}",
+                    elapsed,
+                    unsafe { pthread_self() },
+                    file,
+                    line,
+                    function,
+                    message.get().unwrap()
+                )
+                .unwrap();
+                unsafe {
+                    ndk_sys::__android_log_write(
+                        lvl as raw::c_int,
+                        tag.as_ptr() as _,
+                        msg.as_ptr() as _,
+                    );
+                }
+            }
         }
     }
 
@@ -383,14 +414,14 @@ pub mod android {
 
         // Set GLIB print handlers
         trace!("set glib handlers");
-        glib::set_print_handler(print_info);
-        glib::set_printerr_handler(print_error);
-        glib::log_set_default_handler(log_target);
+        glib::set_print_handler(glib_print_info);
+        glib::set_printerr_handler(glib_print_error);
+        glib::log_set_default_handler(glib_log_with_domain);
 
         // Disable this for releases if performance is important
         // or increase the threshold to get more information
         gst::debug_set_active(true);
-        gst::debug_set_default_threshold(gst::DebugLevel::Warning);
+        gst::debug_set_default_threshold(gst::DebugLevel::Trace);
         gst::debug_remove_default_log_function();
         gst::debug_add_log_function(debug_logcat);
 
@@ -467,12 +498,6 @@ pub mod android {
 
     #[no_mangle]
     unsafe fn JNI_OnLoad(jvm: JavaVM, _reserved: *mut c_void) -> jint {
-        android_logger::init_once(
-            Config::default()
-                .with_min_level(Level::Trace)
-                .with_tag("androidsink"),
-        );
-
         trace!("get JNIEnv");
 
         let env: JNIEnv;
