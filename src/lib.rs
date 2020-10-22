@@ -181,6 +181,7 @@ pub mod android {
     use jni::sys::jint;
     use jni::{JNIEnv, JavaVM};
     use libc::{c_void, pthread_self};
+    use std::ffi::CString;
     use std::fmt::Write;
     use std::os::raw;
 
@@ -214,24 +215,26 @@ pub mod android {
         }
     }
 
-    fn glib_print_info(msg: &str) {
+    fn android_log_write(prio: raw::c_int, tag: CString, msg: CString) {
         unsafe {
-            ndk_sys::__android_log_write(
-                ndk_sys::android_LogPriority_ANDROID_LOG_INFO as raw::c_int,
-                "GLib+stdout".as_ptr() as _,
-                msg.as_ptr() as _,
-            );
+            ndk_sys::__android_log_write(prio, tag.as_ptr(), msg.as_ptr());
         }
     }
 
+    fn glib_print_info(msg: &str) {
+        android_log_write(
+            ndk_sys::android_LogPriority_ANDROID_LOG_INFO as raw::c_int,
+            CString::new("GLib+stdout").unwrap(),
+            CString::new(msg).unwrap(),
+        );
+    }
+
     fn glib_print_error(msg: &str) {
-        unsafe {
-            ndk_sys::__android_log_write(
-                ndk_sys::android_LogPriority_ANDROID_LOG_ERROR as raw::c_int,
-                "GLib+stderr".as_ptr() as _,
-                msg.as_ptr() as _,
-            );
-        }
+        android_log_write(
+            ndk_sys::android_LogPriority_ANDROID_LOG_ERROR as raw::c_int,
+            CString::new("GLib+stderr").unwrap(),
+            CString::new(msg).unwrap(),
+        );
     }
 
     fn glib_log_with_domain(domain: &str, level: glib::LogLevel, msg: &str) {
@@ -243,10 +246,8 @@ pub mod android {
             glib::LogLevel::Info => ndk_sys::android_LogPriority_ANDROID_LOG_INFO,
             glib::LogLevel::Debug => ndk_sys::android_LogPriority_ANDROID_LOG_DEBUG,
         };
-        let tag = String::from("Glib+") + domain;
-        unsafe {
-            ndk_sys::__android_log_write(prio as raw::c_int, tag.as_ptr() as _, msg.as_ptr() as _);
-        }
+        let tag = CString::new(String::from("Glib+") + domain).unwrap();
+        android_log_write(prio as raw::c_int, tag, CString::new(msg).unwrap());
     }
 
     fn debug_logcat(
@@ -272,7 +273,7 @@ pub mod android {
             _ => ndk_sys::android_LogPriority_ANDROID_LOG_VERBOSE,
         };
 
-        let tag = String::from("GStreamer+") + category.get_name();
+        let tag = CString::new(String::from("GStreamer+") + category.get_name()).unwrap();
         let mut label = String::new();
         match object {
             Some(obj) => {
@@ -311,13 +312,7 @@ pub mod android {
                     message.get().unwrap()
                 )
                 .unwrap();
-                unsafe {
-                    ndk_sys::__android_log_write(
-                        lvl as raw::c_int,
-                        tag.as_ptr() as _,
-                        msg.as_ptr() as _,
-                    );
-                }
+                android_log_write(lvl as raw::c_int, tag, CString::new(msg).unwrap());
             }
             None => {
                 let mut msg = String::with_capacity(128);
@@ -332,13 +327,7 @@ pub mod android {
                     message.get().unwrap()
                 )
                 .unwrap();
-                unsafe {
-                    ndk_sys::__android_log_write(
-                        lvl as raw::c_int,
-                        tag.as_ptr() as _,
-                        msg.as_ptr() as _,
-                    );
-                }
+                android_log_write(lvl as raw::c_int, tag, CString::new(msg).unwrap());
             }
         }
     }
@@ -422,7 +411,7 @@ pub mod android {
         // Disable this for releases if performance is important
         // or increase the threshold to get more information
         gst::debug_set_active(true);
-        gst::debug_set_default_threshold(gst::DebugLevel::Trace);
+        gst::debug_set_default_threshold(gst::DebugLevel::Warning);
         gst::debug_remove_default_log_function();
         GST_DEBUG_LOG_FUNCTION = Some(gst::debug_add_log_function(debug_logcat));
 
