@@ -191,10 +191,9 @@ pub mod android {
     use jni::objects::{GlobalRef, JClass, JObject};
     use jni::sys::jint;
     use jni::{JNIEnv, JavaVM};
-    use libc::{c_void, pthread_self};
+    use libc::{c_int, c_void, pthread_self};
     use std::ffi::CString;
     use std::fmt::Write;
-    use std::os::raw;
 
     use glib::translate::*;
     use glib::{Cast, GString, ObjectExt};
@@ -226,7 +225,7 @@ pub mod android {
         }
     }
 
-    fn android_log_write(prio: raw::c_int, tag: CString, msg: CString) {
+    fn android_log_write(prio: c_int, tag: CString, msg: CString) {
         unsafe {
             ndk_sys::__android_log_write(prio, tag.as_ptr(), msg.as_ptr());
         }
@@ -234,7 +233,7 @@ pub mod android {
 
     fn glib_print_info(msg: &str) {
         android_log_write(
-            ndk_sys::android_LogPriority_ANDROID_LOG_INFO as raw::c_int,
+            ndk_sys::android_LogPriority_ANDROID_LOG_INFO as c_int,
             CString::new("GLib+stdout").unwrap(),
             CString::new(msg).unwrap(),
         );
@@ -242,7 +241,7 @@ pub mod android {
 
     fn glib_print_error(msg: &str) {
         android_log_write(
-            ndk_sys::android_LogPriority_ANDROID_LOG_ERROR as raw::c_int,
+            ndk_sys::android_LogPriority_ANDROID_LOG_ERROR as c_int,
             CString::new("GLib+stderr").unwrap(),
             CString::new(msg).unwrap(),
         );
@@ -258,7 +257,7 @@ pub mod android {
             glib::LogLevel::Debug => ndk_sys::android_LogPriority_ANDROID_LOG_DEBUG,
         };
         let tag = CString::new(String::from("Glib+") + domain).unwrap();
-        android_log_write(prio as raw::c_int, tag, CString::new(msg).unwrap());
+        android_log_write(prio as c_int, tag, CString::new(msg).unwrap());
     }
 
     fn debug_logcat(
@@ -323,7 +322,7 @@ pub mod android {
                     message.get().unwrap()
                 )
                 .unwrap();
-                android_log_write(lvl as raw::c_int, tag, CString::new(msg).unwrap());
+                android_log_write(lvl as c_int, tag, CString::new(msg).unwrap());
             }
             None => {
                 let mut msg = String::with_capacity(128);
@@ -338,7 +337,7 @@ pub mod android {
                     message.get().unwrap()
                 )
                 .unwrap();
-                android_log_write(lvl as raw::c_int, tag, CString::new(msg).unwrap());
+                android_log_write(lvl as c_int, tag, CString::new(msg).unwrap());
             }
         }
     }
