@@ -36,7 +36,7 @@ pub static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
 });
 
 fn create_pipeline() -> Result<gst::Pipeline, Error> {
-    gst_trace!(CAT, "creating pipeline");
+    gst_log!(CAT, "creating pipeline");
     let pipeline = gst::Pipeline::new(None);
     gst_trace!(CAT, "creating audiotestsrc");
     let src = gst::ElementFactory::make("audiotestsrc", None)
@@ -135,19 +135,19 @@ fn create_pipeline() -> Result<gst::Pipeline, Error> {
             .build(),
     );
 
-    gst_trace!(CAT, "pipeline created");
+    gst_log!(CAT, "pipeline created");
     Ok(pipeline)
 }
 
 fn main_loop(pipeline: gst::Pipeline) -> Result<(), Error> {
-    gst_trace!(CAT, "set pipeline state to playing");
+    gst_log!(CAT, "set pipeline state to playing");
     pipeline.set_state(gst::State::Playing)?;
 
     let bus = pipeline
         .get_bus()
         .expect("Pipeline without bus. Shouldn't happen!");
 
-    gst_trace!(CAT, "entering main loop");
+    gst_log!(CAT, "entering main loop");
     for msg in bus.iter_timed(gst::CLOCK_TIME_NONE) {
         use gst::MessageView;
 
@@ -169,7 +169,7 @@ fn main_loop(pipeline: gst::Pipeline) -> Result<(), Error> {
             _ => (),
         }
     }
-    gst_trace!(CAT, "leaving main loop");
+    gst_log!(CAT, "leaving main loop");
 
     pipeline.set_state(gst::State::Null)?;
 
