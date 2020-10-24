@@ -188,9 +188,9 @@ pub fn run() {
 pub mod android {
     mod gstinit;
     use crate::CAT;
-    use jni::{JNIEnv, JavaVM};
     use jni::objects::JClass;
     use jni::sys::jint;
+    use jni::{JNIEnv, JavaVM};
     use libc::c_void;
 
     static mut RUNNING: bool = false;
