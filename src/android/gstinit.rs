@@ -1,10 +1,12 @@
 use dlopen::symbor::Library;
-use jni::objects::{GlobalRef, JClass, JObject};
+use jni::objects::{GlobalRef, JClass, JObject, JValue};
 use jni::sys::jint;
 use jni::{JNIEnv, JavaVM};
 use libc::{c_int, c_void, pthread_self};
 use std::ffi::CString;
 use std::fmt::Write;
+
+use thiserror::Error;
 
 use glib::translate::*;
 use glib::{Cast, GString, ObjectExt};
@@ -177,6 +179,50 @@ pub unsafe extern "C" fn gst_android_get_application_class_loader() -> jni::sys:
     }
 }
 
+#[derive(Error, Debug)]
+enum ApplicationDirsError {
+    #[error(transparent)]
+    JNIError(#[from] jni::errors::Error),
+}
+
+// Get application's cache directory and files directory.
+fn get_application_dirs(
+    env: JNIEnv,
+    context: JObject,
+) -> Result<(String, String), ApplicationDirsError> {
+    let cache_dir_path_str;
+    if let JValue::Object(cache_dir) =
+        env.call_method(context, "getCacheDir", "()Ljava/io/File;", &[])?
+    {
+        if let JValue::Object(cache_dir_path) =
+            env.call_method(cache_dir, "getAbsolutePath", "()Ljava/lang/String;", &[])?
+        {
+            cache_dir_path_str = env.get_string(cache_dir_path.into())?;
+        } else {
+            unreachable!()
+        }
+    } else {
+        unreachable!()
+    }
+
+    let files_dir_path_str;
+    if let JValue::Object(files_dir) =
+        env.call_method(context, "getFilesDir", "()Ljava/io/File;", &[])?
+    {
+        if let JValue::Object(files_dir_path) =
+            env.call_method(files_dir, "getAbsolutePath", "()Ljava/lang/String;", &[])?
+        {
+            files_dir_path_str = env.get_string(files_dir_path.into())?;
+        } else {
+            unreachable!()
+        }
+    } else {
+        unreachable!()
+    }
+
+    Ok((cache_dir_path_str.into(), files_dir_path_str.into()))
+}
+
 macro_rules! gstinit_trace {
     ($($arg:tt)*) => {
         let mut msg = String::new();
@@ -197,7 +243,7 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
     match env.call_method(context, "getClassLoader", "()Ljava/lang/ClassLoader;", &[]) {
         Ok(loader) => {
             match loader {
-                jni::objects::JValue::Object(obj) => {
+                JValue::Object(obj) => {
                     CONTEXT = env.new_global_ref(context).ok();
                     CLASS_LOADER = env.new_global_ref(obj).ok();
                     match env.exception_check() {
