@@ -19,6 +19,7 @@ use ndk_sys::android_LogPriority_ANDROID_LOG_VERBOSE as ANDROID_LOG_VERBOSE;
 use ndk_sys::android_LogPriority_ANDROID_LOG_WARN as ANDROID_LOG_WARN;
 
 static mut JAVA_VM: Option<JavaVM> = None;
+static mut PLUGIN_NAMES: Vec<&'static str> = Vec::new();
 static mut PLUGINS: Vec<Library> = Vec::new();
 static mut GST_INFO_START_TIME: ClockTime = ClockTime(None);
 static mut CONTEXT: Option<GlobalRef> = None;
@@ -253,36 +254,7 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
 
     {
         gstinit_trace!("load plugins");
-        let mut plugins_core = vec![
-            "coreelements",
-            "coretracers",
-            "adder",
-            "app",
-            "audioconvert",
-            "audiomixer",
-            "audiorate",
-            "audioresample",
-            "audiotestsrc",
-            "compositor",
-            "gio",
-            "overlaycomposition",
-            "pango",
-            "rawparse",
-            "typefindfunctions",
-            "videoconvert",
-            "videorate",
-            "videoscale",
-            "videotestsrc",
-            "volume",
-            "autodetect",
-            "videofilter",
-        ];
-        let mut plugins_codecs = vec!["androidmedia"];
-        let mut plugins = Vec::new();
-        plugins.append(&mut plugins_core);
-        plugins.append(&mut plugins_codecs);
-
-        for name in &plugins {
+        for name in &PLUGIN_NAMES {
             let mut so_name = String::from("libgst");
             so_name.push_str(name);
             so_name.push_str(".so");
@@ -311,7 +283,13 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
     }
 }
 
-pub unsafe fn on_load(jvm: JavaVM, _reserved: *mut c_void) -> jint {
+pub unsafe fn on_load(
+    jvm: JavaVM,
+    _reserved: *mut c_void,
+    plugin_names: Vec<&'static str>,
+) -> jint {
+    PLUGIN_NAMES = plugin_names;
+
     gstinit_trace!("get JNIEnv");
 
     let env: JNIEnv;

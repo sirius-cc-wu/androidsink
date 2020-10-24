@@ -213,6 +213,35 @@ pub mod android {
 
     #[no_mangle]
     unsafe fn JNI_OnLoad(jvm: JavaVM, _reserved: *mut c_void) -> jint {
-        gstinit::on_load(jvm, _reserved)
+        let mut plugins_core = vec![
+            "coreelements",
+            "coretracers",
+            "adder",
+            "app",
+            "audioconvert",
+            "audiomixer",
+            "audiorate",
+            "audioresample",
+            "audiotestsrc",
+            "compositor",
+            "gio",
+            "overlaycomposition",
+            "pango",
+            "rawparse",
+            "typefindfunctions",
+            "videoconvert",
+            "videorate",
+            "videoscale",
+            "videotestsrc",
+            "volume",
+            "autodetect",
+            "videofilter",
+        ];
+        let mut plugins_codecs = vec!["androidmedia"];
+        let mut plugin_names = Vec::new();
+        plugin_names.append(&mut plugins_core);
+        plugin_names.append(&mut plugins_codecs);
+
+        gstinit::on_load(jvm, _reserved, plugin_names)
     }
 }
