@@ -272,6 +272,12 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
         }
     }
 
+    // TODO: gst_is_initialized?
+    // if (gst_is_initialized ()) {
+    //     gstinit_trace!("GStreamer already initialized");
+    //     return;
+    // }
+
     let (cache_dir, files_dir) = get_application_dirs(env, context);
     gstinit_trace!("cache_dir: {}, files_dir: {}", cache_dir, files_dir);
     // Set environment variables to cache dir, on some platforms not thread-safe beacause of `std::env.set_var`.
