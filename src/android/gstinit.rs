@@ -27,6 +27,14 @@ static mut CONTEXT: Option<GlobalRef> = None;
 static mut CLASS_LOADER: Option<GlobalRef> = None;
 static mut GST_DEBUG_LOG_FUNCTION: Option<gst::DebugLogFunction> = None;
 
+macro_rules! gstinit_trace {
+    ($($arg:tt)*) => {
+        let mut msg = String::new();
+        msg.write_fmt(format_args!($($arg)*)).unwrap();
+        android_log_write(ANDROID_LOG_VERBOSE as c_int, CString::new("GStreamer+androidinit").unwrap(), CString::new(msg).unwrap());
+    }
+}
+
 use once_cell::sync::Lazy;
 pub static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
@@ -99,22 +107,30 @@ fn debug_logcat(
     match object {
         Some(obj) => {
             if obj.is::<Pad>() {
-                let pad = obj.downcast_ref::<gst::Object>().unwrap();
                 // Do not use pad.get_name() here because get_name() may fail because the object may not yet fully constructed.
-                let pad_name: Option<GString> =
-                    unsafe { from_glib_full(gst_sys::gst_object_get_name(pad.to_glib_none().0)) };
-                let pad_name = pad_name.map_or("".to_string(), |v| v.to_string());
-                let parent_name = pad
-                    .get_parent()
-                    .map_or("".to_string(), |p| p.get_name().to_string());
-                write!(&mut label, "<{}:{}>", parent_name, pad_name).unwrap();
+                // Also `gst_object_get_name` and `get_parent` can not be used because pad may be locked recursively.
+                // TODO: find a way to print pad name.
+                //
+                // let pad = obj.downcast_ref::<gst::Object>().unwrap();
+                // let pad_name: Option<GString> =
+                //     unsafe { from_glib_full(gst_sys::gst_object_get_name(pad.to_glib_none().0)) };
+                // let pad_name = pad_name.map_or("".to_string(), |v| v.to_string());
+                // let parent_name = pad
+                //     .get_parent()
+                //     .map_or("".to_string(), |p| p.get_name().to_string());
+                // write!(&mut label, "<{}:{}>", parent_name, pad_name).unwrap();
+                write!(&mut label, "<{}:{}>", "object", "pad").unwrap();
             } else if obj.is::<gst::Object>() {
-                let ob = obj.downcast_ref::<gst::Object>().unwrap();
                 // Do not use ob.get_name() here because get_name() may fail because the object may not yet fully constructed.
-                let ob_name: Option<GString> =
-                    unsafe { from_glib_full(gst_sys::gst_object_get_name(ob.to_glib_none().0)) };
-                let name = ob_name.map_or("".to_string(), |v| v.to_string());
-                write!(&mut label, "<{}>", name).unwrap();
+                // Also `gst_object_get_name` and `get_parent` can not be used because pad may be locked recursively.
+                // TODO: find a way to print object name.
+                //
+                // let ob = obj.downcast_ref::<gst::Object>().unwrap();
+                // let ob_name: Option<GString> =
+                //     unsafe { from_glib_full(gst_sys::gst_object_get_name(ob.to_glib_none().0)) };
+                // let name = ob_name.map_or("".to_string(), |v| v.to_string());
+                // write!(&mut label, "<{}>", name).unwrap();
+                write!(&mut label, "<{}>", "object").unwrap();
             } else {
                 write!(&mut label, "<{}@{:#x?}>", obj.get_type(), obj).unwrap();
             }
@@ -221,14 +237,6 @@ fn get_application_dirs(env: JNIEnv, context: JObject) -> (String, String) {
     (cache_dir_path_str.into(), files_dir_path_str.into())
 }
 
-macro_rules! gstinit_trace {
-    ($($arg:tt)*) => {
-        let mut msg = String::new();
-        msg.write_fmt(format_args!($($arg)*)).unwrap();
-        android_log_write(ANDROID_LOG_VERBOSE as c_int, CString::new("GStreamer+androidinit").unwrap(), CString::new(msg).unwrap());
-    }
-}
-
 #[no_mangle]
 pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
     env: JNIEnv,
@@ -316,7 +324,7 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
     // Disable this for releases if performance is important
     // or increase the threshold to get more information
     gst::debug_set_active(true);
-    gst::debug_set_default_threshold(gst::DebugLevel::Trace);
+    gst::debug_set_default_threshold(gst::DebugLevel::Info);
     gst::debug_remove_default_log_function();
     GST_DEBUG_LOG_FUNCTION = Some(gst::debug_add_log_function(debug_logcat));
 
