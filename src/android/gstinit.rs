@@ -5,6 +5,7 @@ use jni::{JNIEnv, JavaVM};
 use libc::{c_int, c_void, pthread_self};
 use std::ffi::CString;
 use std::fmt::Write;
+use std::path::Path;
 
 use glib::translate::*;
 use glib::{Cast, GString, ObjectExt};
@@ -272,6 +273,33 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
     }
 
     let (cache_dir, files_dir) = get_application_dirs(env, context);
+    gstinit_trace!("cache_dir: {}, files_dir: {}", cache_dir, files_dir);
+    // Set environment variables to cache dir, on some platforms not thread-safe beacause of `std::env.set_var`.
+    std::env::set_var("TMP", &cache_dir);
+    std::env::set_var("TMP", &cache_dir);
+    std::env::set_var("TEMP", &cache_dir);
+    std::env::set_var("TMPDIR", &cache_dir);
+    std::env::set_var("XDG_RUNTIME_DIR", &cache_dir);
+    std::env::set_var("XDG_CACHE_HOME", &cache_dir);
+    let registry = Path::new(&cache_dir).join("registry.bin");
+    gstinit_trace!("registry: {:?}", &registry);
+    std::env::set_var("GST_REGISTRY", &registry);
+    std::env::set_var("GST_REGISTRY_REUSE_PLUGIN_SCANNER", "no");
+    // Set std::environment variables to files dir, on some platforms not thread-safe beacause of `std::env::set_var`.
+    std::env::set_var("HOME", &files_dir);
+    std::env::set_var("XDG_DATA_DIRS", &files_dir);
+    std::env::set_var("XDG_CONFIG_DIRS", &files_dir);
+    std::env::set_var("XDG_CONFIG_HOME", &files_dir);
+    std::env::set_var("XDG_DATA_HOME", &files_dir);
+    let fontconfig = Path::new(&files_dir).join("fontconfig");
+    gstinit_trace!("fontconfig path: {:?}", &fontconfig);
+    std::env::set_var("FONTCONFIG_PATH", &fontconfig);
+    let certs = Path::new(&files_dir)
+        .join("ssl")
+        .join("certs")
+        .join("ca-certificates.crt");
+    gstinit_trace!("ca_certificates path: {:?}", &certs);
+    std::env::set_var("CA_CERTIFICATES", &certs);
 
     // Set GLIB print handlers
     gstinit_trace!("set glib handlers");
