@@ -6,8 +6,6 @@ use libc::{c_int, c_void, pthread_self};
 use std::ffi::CString;
 use std::fmt::Write;
 
-use thiserror::Error;
-
 use glib::translate::*;
 use glib::{Cast, GString, ObjectExt};
 use gst::util_get_timestamp;
@@ -179,48 +177,47 @@ pub unsafe extern "C" fn gst_android_get_application_class_loader() -> jni::sys:
     }
 }
 
-#[derive(Error, Debug)]
-enum ApplicationDirsError {
-    #[error(transparent)]
-    JNIError(#[from] jni::errors::Error),
-}
-
 // Get application's cache directory and files directory.
-fn get_application_dirs(
-    env: JNIEnv,
-    context: JObject,
-) -> Result<(String, String), ApplicationDirsError> {
+fn get_application_dirs(env: JNIEnv, context: JObject) -> (String, String) {
     let cache_dir_path_str;
-    if let JValue::Object(cache_dir) =
-        env.call_method(context, "getCacheDir", "()Ljava/io/File;", &[])?
+    if let JValue::Object(cache_dir) = env
+        .call_method(context, "getCacheDir", "()Ljava/io/File;", &[])
+        .expect("Could not call getCacheDir")
     {
-        if let JValue::Object(cache_dir_path) =
-            env.call_method(cache_dir, "getAbsolutePath", "()Ljava/lang/String;", &[])?
+        if let JValue::Object(cache_dir_path) = env
+            .call_method(cache_dir, "getAbsolutePath", "()Ljava/lang/String;", &[])
+            .expect("Could not call getAbsolutePath")
         {
-            cache_dir_path_str = env.get_string(cache_dir_path.into())?;
+            cache_dir_path_str = env
+                .get_string(cache_dir_path.into())
+                .expect("Could not get string for cached dir path");
         } else {
-            unreachable!()
+            unreachable!();
         }
     } else {
-        unreachable!()
+        unreachable!();
     }
 
     let files_dir_path_str;
-    if let JValue::Object(files_dir) =
-        env.call_method(context, "getFilesDir", "()Ljava/io/File;", &[])?
+    if let JValue::Object(files_dir) = env
+        .call_method(context, "getFilesDir", "()Ljava/io/File;", &[])
+        .expect("Could not call getFilesDir")
     {
-        if let JValue::Object(files_dir_path) =
-            env.call_method(files_dir, "getAbsolutePath", "()Ljava/lang/String;", &[])?
+        if let JValue::Object(files_dir_path) = env
+            .call_method(files_dir, "getAbsolutePath", "()Ljava/lang/String;", &[])
+            .expect("Could not call getAbsolutePath")
         {
-            files_dir_path_str = env.get_string(files_dir_path.into())?;
+            files_dir_path_str = env
+                .get_string(files_dir_path.into())
+                .expect("Could not get string from files dir path");
         } else {
-            unreachable!()
+            unreachable!();
         }
     } else {
-        unreachable!()
+        unreachable!();
     }
 
-    Ok((cache_dir_path_str.into(), files_dir_path_str.into()))
+    (cache_dir_path_str.into(), files_dir_path_str.into())
 }
 
 macro_rules! gstinit_trace {
@@ -273,6 +270,8 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
             return;
         }
     }
+
+    let (cache_dir, files_dir) = get_application_dirs(env, context);
 
     // Set GLIB print handlers
     gstinit_trace!("set glib handlers");
