@@ -7,10 +7,9 @@ use std::ffi::CString;
 use std::fmt::Write;
 use std::path::Path;
 
-use glib::translate::*;
-use glib::{Cast, GString, ObjectExt};
+use glib::{ObjectExt, ObjectType};
 use gst::util_get_timestamp;
-use gst::{ClockTime, DebugCategory, DebugLevel, DebugMessage, GstObjectExt, Pad};
+use gst::{ClockTime, DebugCategory, DebugLevel, DebugMessage, Pad};
 use gst_sys;
 
 use ndk_sys::android_LogPriority_ANDROID_LOG_DEBUG as ANDROID_LOG_DEBUG;
@@ -107,30 +106,45 @@ fn debug_logcat(
     match object {
         Some(obj) => {
             if obj.is::<Pad>() {
-                // Do not use pad.get_name() here because get_name() may fail because the object may not yet fully constructed.
-                // Also `gst_object_get_name` and `get_parent` can not be used because pad may be locked recursively.
-                // TODO: find a way to print pad name.
-                //
-                // let pad = obj.downcast_ref::<gst::Object>().unwrap();
-                // let pad_name: Option<GString> =
-                //     unsafe { from_glib_full(gst_sys::gst_object_get_name(pad.to_glib_none().0)) };
-                // let pad_name = pad_name.map_or("".to_string(), |v| v.to_string());
-                // let parent_name = pad
-                //     .get_parent()
-                //     .map_or("".to_string(), |p| p.get_name().to_string());
-                // write!(&mut label, "<{}:{}>", parent_name, pad_name).unwrap();
-                write!(&mut label, "<{}:{}>", "object", "pad").unwrap();
+                let pad_name: Option<&str> = unsafe {
+                    let ptr = obj.as_ptr() as *mut gst_sys::GstObject;
+                    if (*ptr).name.is_null() {
+                        None
+                    } else {
+                        std::ffi::CStr::from_ptr((*ptr).name).to_str().ok()
+                    }
+                };
+
+                let parent_name: Option<&str> = unsafe {
+                    let ptr = obj.as_ptr() as *mut gst_sys::GstObject;
+                    if (*ptr).parent.is_null() {
+                        None
+                    } else {
+                        let ptr = (*ptr).parent;
+                        if (*ptr).name.is_null() {
+                            None
+                        } else {
+                            std::ffi::CStr::from_ptr((*ptr).name).to_str().ok()
+                        }
+                    }
+                };
+                write!(
+                    &mut label,
+                    "<{}:{}>",
+                    parent_name.unwrap_or(""),
+                    pad_name.unwrap_or("")
+                )
+                .unwrap();
             } else if obj.is::<gst::Object>() {
-                // Do not use ob.get_name() here because get_name() may fail because the object may not yet fully constructed.
-                // Also `gst_object_get_name` and `get_parent` can not be used because pad may be locked recursively.
-                // TODO: find a way to print object name.
-                //
-                // let ob = obj.downcast_ref::<gst::Object>().unwrap();
-                // let ob_name: Option<GString> =
-                //     unsafe { from_glib_full(gst_sys::gst_object_get_name(ob.to_glib_none().0)) };
-                // let name = ob_name.map_or("".to_string(), |v| v.to_string());
-                // write!(&mut label, "<{}>", name).unwrap();
-                write!(&mut label, "<{}>", "object").unwrap();
+                let name: Option<&str> = unsafe {
+                    let ptr = obj.as_ptr() as *mut gst_sys::GstObject;
+                    if (*ptr).name.is_null() {
+                        None
+                    } else {
+                        std::ffi::CStr::from_ptr((*ptr).name).to_str().ok()
+                    }
+                };
+                write!(&mut label, "<{}>", name.unwrap_or("")).unwrap();
             } else {
                 write!(&mut label, "<{}@{:#x?}>", obj.get_type(), obj).unwrap();
             }
@@ -324,7 +338,7 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
     // Disable this for releases if performance is important
     // or increase the threshold to get more information
     gst::debug_set_active(true);
-    gst::debug_set_default_threshold(gst::DebugLevel::Info);
+    gst::debug_set_default_threshold(gst::DebugLevel::Trace);
     gst::debug_remove_default_log_function();
     GST_DEBUG_LOG_FUNCTION = Some(gst::debug_add_log_function(debug_logcat));
 
