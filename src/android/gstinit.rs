@@ -294,11 +294,10 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
         }
     }
 
-    // TODO: gst_is_initialized?
-    // if (gst_is_initialized ()) {
-    //     gstinit_trace!("GStreamer already initialized");
-    //     return;
-    // }
+    if unsafe { gst_sys::gst_is_initialized() } == glib_sys::GTRUE {
+        gstinit_trace!("GStreamer already initialized");
+        return;
+    }
 
     let (cache_dir, files_dir) = get_application_dirs(env, context);
     gstinit_trace!("cache_dir: {}, files_dir: {}", cache_dir, files_dir);
@@ -338,7 +337,7 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
     // Disable this for releases if performance is important
     // or increase the threshold to get more information
     gst::debug_set_active(true);
-    gst::debug_set_default_threshold(gst::DebugLevel::Trace);
+    gst::debug_set_default_threshold(gst::DebugLevel::Info);
     gst::debug_remove_default_log_function();
     GST_DEBUG_LOG_FUNCTION = Some(gst::debug_add_log_function(debug_logcat));
 
