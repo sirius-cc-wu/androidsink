@@ -34,6 +34,14 @@ macro_rules! gstinit_trace {
     }
 }
 
+macro_rules! gstinit_error {
+    ($($arg:tt)*) => {
+        let mut msg = String::new();
+        msg.write_fmt(format_args!($($arg)*)).unwrap();
+        android_log_write(ANDROID_LOG_ERROR as c_int, CString::new("GStreamer+androidinit").unwrap(), CString::new(msg).unwrap());
+    }
+}
+
 use once_cell::sync::Lazy;
 pub static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
@@ -49,7 +57,7 @@ fn android_log_write(prio: c_int, tag: CString, msg: CString) {
     }
 }
 
-fn glib_print_info(msg: &str) {
+fn glib_print_handler(msg: &str) {
     android_log_write(
         ANDROID_LOG_INFO as c_int,
         CString::new("GLib+stdout").unwrap(),
@@ -57,7 +65,7 @@ fn glib_print_info(msg: &str) {
     );
 }
 
-fn glib_print_error(msg: &str) {
+fn glib_printerr_handler(msg: &str) {
     android_log_write(
         ANDROID_LOG_ERROR as c_int,
         CString::new("GLib+stderr").unwrap(),
@@ -65,7 +73,7 @@ fn glib_print_error(msg: &str) {
     );
 }
 
-fn glib_log_with_domain(domain: &str, level: glib::LogLevel, msg: &str) {
+fn glib_log_handler(domain: &str, level: glib::LogLevel, msg: &str) {
     let prio = match level {
         glib::LogLevel::Error => ANDROID_LOG_ERROR,
         glib::LogLevel::Critical => ANDROID_LOG_ERROR,
@@ -209,7 +217,7 @@ pub unsafe extern "C" fn gst_android_get_application_class_loader() -> jni::sys:
 }
 
 // Get application's cache directory and files directory.
-fn get_application_dirs(env: JNIEnv, context: JObject) -> (String, String) {
+fn get_application_dirs(env: &JNIEnv, context: JObject) -> (String, String) {
     let cache_dir_path_str;
     if let JValue::Object(cache_dir) = env
         .call_method(context, "getCacheDir", "()Ljava/io/File;", &[])
@@ -277,29 +285,29 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
                             }
                         }
                         Err(e) => {
-                            gstinit_trace!("{}", e);
+                            gstinit_error!("{}", e);
                             return;
                         }
                     }
                 }
                 _ => {
-                    gstinit_trace!("Could not get class loader");
+                    gstinit_error!("Could not get class loader");
                     return;
                 }
             }
         }
         Err(e) => {
-            gstinit_trace!("{}", e);
+            gstinit_error!("{}", e);
             return;
         }
     }
 
-    if unsafe { gst_sys::gst_is_initialized() } == glib_sys::GTRUE {
-        gstinit_trace!("GStreamer already initialized");
+    if gst_sys::gst_is_initialized() == glib_sys::GTRUE {
+        gstinit_error!("GStreamer already initialized");
         return;
     }
 
-    let (cache_dir, files_dir) = get_application_dirs(env, context);
+    let (cache_dir, files_dir) = get_application_dirs(&env, context);
     gstinit_trace!("cache_dir: {}, files_dir: {}", cache_dir, files_dir);
     // Set environment variables to cache dir, on some platforms not thread-safe beacause of `std::env.set_var`.
     std::env::set_var("TMP", &cache_dir);
@@ -330,14 +338,14 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
 
     // Set GLIB print handlers
     gstinit_trace!("set glib handlers");
-    glib::set_print_handler(glib_print_info);
-    glib::set_printerr_handler(glib_print_error);
-    glib::log_set_default_handler(glib_log_with_domain);
+    glib::set_print_handler(glib_print_handler);
+    glib::set_printerr_handler(glib_printerr_handler);
+    glib::log_set_default_handler(glib_log_handler);
 
     // Disable this for releases if performance is important
     // or increase the threshold to get more information
     gst::debug_set_active(true);
-    gst::debug_set_default_threshold(gst::DebugLevel::Info);
+    gst::debug_set_default_threshold(gst::DebugLevel::Warning);
     gst::debug_remove_default_log_function();
     GST_DEBUG_LOG_FUNCTION = Some(gst::debug_add_log_function(debug_logcat));
 
@@ -347,7 +355,18 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
     match gst::init() {
         Ok(_) => { /* Do nothing. */ }
         Err(e) => {
-            gstinit_trace!("{}", e);
+            gstinit_error!("GStreamer initialization failed: {}", e);
+            let mut msg = String::new();
+            write!(msg, "GStreamer initialization failed: {}", e).unwrap();
+            match env.find_class("java/lang/Exception") {
+                Ok(c) => {
+                    let _ = env.throw_new(c, &msg);
+                }
+                Err(e) => {
+                    gstinit_error!("Could not get Exception class: {}", e);
+                    return;
+                }
+            }
             return;
         }
     }
@@ -369,14 +388,14 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
                     match lib.symbol::<unsafe extern "C" fn()>(&plugin_register) {
                         Ok(f) => f(),
                         Err(e) => {
-                            gstinit_trace!("{}", e);
+                            gstinit_error!("{}", e);
                         }
                     }
                     // Keep plugin
                     PLUGINS.push(lib);
                 }
                 Err(e) => {
-                    gstinit_trace!("{}", e);
+                    gstinit_error!("{}", e);
                 }
             };
         }
@@ -398,7 +417,7 @@ pub unsafe fn on_load(
             env = v;
         }
         Err(e) => {
-            gstinit_trace!("Could not retrieve JNIEnv, error: {}", e);
+            gstinit_error!("Could not retrieve JNIEnv, error: {}", e);
             return 0;
         }
     }
@@ -414,7 +433,7 @@ pub unsafe fn on_load(
             gstinit_trace!("JNI Version: {:#x?}", version);
         }
         Err(e) => {
-            gstinit_trace!("Could not retrieve JNI version, error: {}", e);
+            gstinit_error!("Could not retrieve JNI version, error: {}", e);
             return 0;
         }
     }
@@ -424,7 +443,7 @@ pub unsafe fn on_load(
     match env.find_class("org/freedesktop/gstreamer/GStreamer") {
         Ok(_c) => {}
         Err(e) => {
-            gstinit_trace!(
+            gstinit_error!(
                 "Could not retreive class org.freedesktop.gstreamer.GStreamer, error: {}",
                 e
             );
