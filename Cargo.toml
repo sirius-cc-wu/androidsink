@@ -5,7 +5,7 @@ authors = ["Sirius Wu <ccwu660601@mapacode.tw>"]
 edition = "2018"
 
 [lib]
-crate-type = ["dylib"]
+crate-type = ["cdylib"]
 
 [profile.dev]
 panic = "abort"
