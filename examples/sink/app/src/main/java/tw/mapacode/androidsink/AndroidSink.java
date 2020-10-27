@@ -35,7 +35,7 @@ public class AndroidSink {
                 // Os.setenv("GST_DEBUG", "androidsink:6,basesrc:6,basesink:6", true);
                 // Os.setenv("GST_DEBUG", "androidsink:6,basesrc:6,basesink:6,audiotestsrc:6,appsink:6", true);
                 // Os.setenv("GST_DEBUG", "GST_ELEMENT_PADS:6", true);
-                Os.setenv("GST_DEBUG", "GST_DEBUG:6", true);
+                // Os.setenv("GST_DEBUG", "5,androidsink:7", true);
                 // Os.setenv("GST_DEBUG", "6", true);
             } catch (Exception e) {
                 Log.i(tag,"Cannot set environment variables");

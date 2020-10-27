@@ -128,7 +128,7 @@ fn create_pipeline() -> Result<gst::Pipeline, Error> {
                     })
                     .sum();
                 let rms = (sum / (samples.len() as f64)).sqrt();
-                println!("rms: {}", rms);
+                glib::g_print!("rms: {}", rms);
 
                 Ok(gst::FlowSuccess::Ok)
             })
