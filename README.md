@@ -4,13 +4,7 @@ Android example for gstreamer-rs
 
 # Build
 
-必須先編譯安卓的 gstreamer，並且將其 pkgconfig 拿出來放到一個目錄下，並修正各個 .pc 檔的路徑，目錄結構如下：
-
-* pkgconfig
-  * armv7
-  * arm64
-  * x86
-  * x86\_64
+This project uses Mozilla's [rut-android-gradle](https://github.com/mozilla/rust-android-gradle). Before building the project the following environment variables should be specified.
 
 ```
 # Environment variables
@@ -23,19 +17,26 @@ export CXX=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++
 export PKG_CONFIG_ALLOW_CROSS=1 
 export GST_PKG_CONFIG=<path/to/android/gstreamers/pkgconfig>
 
-# Rust library
+The folder pointed to by `GST_PKG_CONFIG` should have the following structure:
+
+* pkgconfig
+  * armv7
+  * arm64
+  * x86
+  * x86\_64
+
+To build the rust library:
+
+```
 cd examples/sink
 ./gradlew cargoBuild
+```
 
-# Copy all of the gstreamer libraries used into examples/sink/app/build/rustJniLibs
+In order to build the whole project, all the gstreamer libraries used should be copied into examples/sink/app/build/rustJniLibs.
+
+To build and install the android package:
 
 ...
-
-# App and rust library
 cd examples/sink
 ./gradlew installDebug
 ```
-
-# 文獻
-
-* [Create a Basic Android App without an IDE ](https://developer.okta.com/blog/2018/08/10/basic-android-without-an-ide)
