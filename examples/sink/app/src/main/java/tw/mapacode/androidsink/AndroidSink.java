@@ -9,6 +9,7 @@ import org.freedesktop.gstreamer.GStreamer;
 
 public class AndroidSink {
     static {
+        System.loadLibrary("z");
         System.loadLibrary("androidsink");
     }
 
@@ -28,10 +29,14 @@ public class AndroidSink {
 //            }
             // Initialize GStreamer and warn if it fails
             try {
-                Os.setenv("GST_DEBUG", "androidsink:7", true);
+                // Os.setenv("GST_DEBUG", "androidsink:7", true);
+                // Os.setenv("GST_DEBUG", "androidsink:7,basesrc:6,basesink:6,fakesrc:6,fakesink:6", true);
                 // Os.setenv("GST_DEBUG", "GST_ELEMENT_FACTORY:7", true);
-                // Os.setenv("GST_DEBUG", "audiotestsrc:6,appsink:6", true);
+                // Os.setenv("GST_DEBUG", "androidsink:6,basesrc:6,basesink:6", true);
+                // Os.setenv("GST_DEBUG", "androidsink:6,basesrc:6,basesink:6,audiotestsrc:6,appsink:6", true);
                 // Os.setenv("GST_DEBUG", "GST_ELEMENT_PADS:6", true);
+                Os.setenv("GST_DEBUG", "GST_DEBUG:6", true);
+                // Os.setenv("GST_DEBUG", "6", true);
             } catch (Exception e) {
                 Log.i(tag,"Cannot set environment variables");
             }
