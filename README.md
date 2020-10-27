@@ -16,6 +16,7 @@ export CC=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang
 export CXX=$NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++
 export PKG_CONFIG_ALLOW_CROSS=1 
 export GST_PKG_CONFIG=<path/to/android/gstreamers/pkgconfig>
+```
 
 The folder pointed to by `GST_PKG_CONFIG` should have the following structure:
 
@@ -36,7 +37,7 @@ In order to build the whole project, all the gstreamer libraries used should be 
 
 To build and install the android package:
 
-...
+```
 cd examples/sink
 ./gradlew installDebug
 ```
