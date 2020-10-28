@@ -259,6 +259,10 @@ fn get_application_dirs(env: &JNIEnv, context: JObject) -> (String, String) {
     (cache_dir_path_str.into(), files_dir_path_str.into())
 }
 
+fn gst_android_load_gio_modules() {
+    // TODO
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
     env: JNIEnv,
@@ -400,6 +404,8 @@ pub unsafe extern "C" fn Java_org_freedesktop_gstreamer_GStreamer_nativeInit(
             };
         }
     }
+
+    gst_android_load_gio_modules();
 }
 
 pub unsafe fn on_load(
